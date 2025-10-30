@@ -17,6 +17,15 @@ class DiagramItem:
     height: Optional[float] = None
 
 
+@dataclass
+class DiagramConnection:
+    """Represents a manual connection between two tables in a diagram."""
+    source_table: str  # Full name of source table
+    target_table: str  # Full name of target table
+    connection_type: str = 'manual'  # Type of connection (manual, fk, etc.)
+    label: Optional[str] = None  # Optional label for the connection
+
+
 class Diagram:
     """Represents an ER diagram."""
     
@@ -24,6 +33,7 @@ class Diagram:
         self.name = name
         self.description = description
         self.items: List[DiagramItem] = []
+        self.connections: List[DiagramConnection] = []  # Manual connections
         self.is_active = False  # Track if this is the currently active diagram
         self.zoom_level = 1.0
         self.scroll_x = 0.0
@@ -63,9 +73,36 @@ class Diagram:
             item.x = x
             item.y = y
     
+    def add_connection(self, source_table: str, target_table: str, 
+                      connection_type: str = 'manual', label: Optional[str] = None):
+        """Add a connection between two tables."""
+        # Remove existing connection if it exists
+        self.remove_connection(source_table, target_table)
+        
+        connection = DiagramConnection(
+            source_table=source_table,
+            target_table=target_table,
+            connection_type=connection_type,
+            label=label
+        )
+        self.connections.append(connection)
+    
+    def remove_connection(self, source_table: str, target_table: str):
+        """Remove a connection between two tables."""
+        self.connections = [
+            conn for conn in self.connections 
+            if not ((conn.source_table == source_table and conn.target_table == target_table) or
+                   (conn.source_table == target_table and conn.target_table == source_table))
+        ]
+    
+    def get_connections(self) -> List[DiagramConnection]:
+        """Get all connections in the diagram."""
+        return self.connections.copy()
+    
     def clear(self):
-        """Clear all items from the diagram."""
+        """Clear all items and connections from the diagram."""
         self.items.clear()
+        self.connections.clear()
     
     def to_dict(self) -> dict:
         """Convert diagram to dictionary for serialization."""
@@ -86,6 +123,15 @@ class Diagram:
                     'height': item.height
                 }
                 for item in self.items
+            ],
+            'connections': [
+                {
+                    'source_table': conn.source_table,
+                    'target_table': conn.target_table,
+                    'connection_type': conn.connection_type,
+                    'label': conn.label
+                }
+                for conn in self.connections
             ]
         }
     
@@ -106,6 +152,14 @@ class Diagram:
                 item_data['y'],
                 item_data.get('width'),
                 item_data.get('height')
+            )
+        
+        for conn_data in data.get('connections', []):
+            diagram.add_connection(
+                conn_data['source_table'],
+                conn_data['target_table'],
+                conn_data.get('connection_type', 'manual'),
+                conn_data.get('label')
             )
         
         return diagram

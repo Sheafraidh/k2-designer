@@ -245,7 +245,20 @@ class ProjectManager:
                 y REAL NOT NULL,
                 width REAL,
                 height REAL,
-                FOREIGN KEY (diagram_name) REFERENCES diagrams (name)
+                FOREIGN KEY (diagram_name) REFERENCES diagrams(name) ON DELETE CASCADE
+            )
+        ''')
+        
+        # Diagram connections
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS diagram_connections (
+                id INTEGER PRIMARY KEY,
+                diagram_name TEXT NOT NULL,
+                source_table TEXT NOT NULL,
+                target_table TEXT NOT NULL,
+                connection_type TEXT DEFAULT 'manual',
+                label TEXT,
+                FOREIGN KEY (diagram_name) REFERENCES diagrams(name) ON DELETE CASCADE
             )
         ''')
     
@@ -383,6 +396,15 @@ class ProjectManager:
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 ''', (diagram.name, item.object_type, item.object_name,
                       item.x, item.y, item.width, item.height))
+            
+            # Save diagram connections
+            for conn in diagram.connections:
+                cursor.execute('''
+                    INSERT INTO diagram_connections (diagram_name, source_table, target_table,
+                                                   connection_type, label)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (diagram.name, conn.source_table, conn.target_table,
+                      conn.connection_type, conn.label))
         
         # Save last active diagram
         if self.current_project.last_active_diagram:
@@ -563,6 +585,21 @@ class ProjectManager:
                     item_row[3],  # y
                     item_row[4],  # width
                     item_row[5]   # height
+                )
+            
+            # Load diagram connections
+            cursor.execute('''
+                SELECT source_table, target_table, connection_type, label
+                FROM diagram_connections
+                WHERE diagram_name = ?
+            ''', (diagram.name,))
+            
+            for conn_row in cursor.fetchall():
+                diagram.add_connection(
+                    conn_row[0],  # source_table
+                    conn_row[1],  # target_table
+                    conn_row[2],  # connection_type
+                    conn_row[3]   # label
                 )
             
             project.add_diagram(diagram)

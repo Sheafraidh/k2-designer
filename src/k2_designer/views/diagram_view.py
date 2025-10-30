@@ -4,10 +4,12 @@ Diagram view for drawing ER diagrams.
 
 from PyQt6.QtWidgets import (QGraphicsView, QGraphicsScene, QGraphicsItem,
                              QGraphicsRectItem, QGraphicsTextItem, QGraphicsLineItem,
-                             QMenu, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-                             QApplication)
+                             QGraphicsPolygonItem, QMenu, QWidget, QVBoxLayout, 
+                             QHBoxLayout, QPushButton, QApplication)
 from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal
-from PyQt6.QtGui import QPen, QBrush, QColor, QFont, QPainter, QTransform, QPalette
+from PyQt6.QtGui import (QPen, QBrush, QColor, QFont, QPainter, QTransform, 
+                         QPalette, QPolygonF)
+import math
 
 from ..models import Project, Table, Column, Sequence, Diagram
 
@@ -74,7 +76,18 @@ class TableGraphicsItem(QGraphicsRectItem):
         if change == QGraphicsItem.GraphicsItemChange.ItemSelectedChange:
             # Update appearance when selection changes
             self._update_selection_appearance()
+        elif change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
+            # Update connected lines when position changes
+            self._update_connections()
         return super().itemChange(change, value)
+    
+    def _update_connections(self):
+        """Update all connections involving this table."""
+        scene = self.scene()
+        if scene and hasattr(scene, 'connection_items'):
+            for connection in scene.connection_items:
+                if connection.source_table == self or connection.target_table == self:
+                    connection._update_line()
     
     def _create_content(self):
         """Create the content of the table (title and columns)."""
@@ -156,11 +169,15 @@ class TableGraphicsItem(QGraphicsRectItem):
             # Single selection context menu
             edit_action = menu.addAction("Edit Table")
             menu.addSeparator()
+            create_connection_action = menu.addAction("Create Connection")
+            menu.addSeparator()
             delete_action = menu.addAction("Remove from Diagram")
             
             action = menu.exec(event.screenPos())
             if action == edit_action:
                 self._edit_table()
+            elif action == create_connection_action:
+                self._start_connection_creation()
             elif action == delete_action:
                 self._remove_from_diagram()
         
@@ -387,46 +404,211 @@ class TableGraphicsItem(QGraphicsRectItem):
             # Let the parent handle other mouse buttons
             super().mouseDoubleClickEvent(event)
 
+    def _start_connection_creation(self):
+        """Start the connection creation mode."""
+        print(f"🔴 [DEBUG] Starting connection creation from source table: {self.table.name}")
+        scene = self.scene()
+        if scene and hasattr(scene, 'start_connection_mode'):
+            scene.start_connection_mode(self)
+        else:
+            print(f"🔴 [DEBUG] ERROR: No scene or start_connection_mode method available")
+
 
 class ConnectionGraphicsItem(QGraphicsLineItem):
-    """Graphics item representing a foreign key connection."""
+    """Graphics item representing a foreign key or manual connection."""
     
     def __init__(self, source_table: TableGraphicsItem, target_table: TableGraphicsItem,
-                 source_column: str, target_column: str, parent=None):
+                 source_column: str = None, target_column: str = None, parent=None):
         super().__init__(parent)
         self.source_table = source_table
         self.target_table = target_table
         self.source_column = source_column
         self.target_column = target_column
+        self.is_manual = False  # Will be set to True for manual connections
+        self.arrow_head = None  # Arrow head graphics item
         
         self._setup_appearance()
         self._update_line()
     
     def _setup_appearance(self):
         """Setup the visual appearance of the connection."""
-        self.setPen(QPen(QColor("blue"), 2))
+        if self.is_manual or self.source_column == "manual":
+            # Manual connections: solid red line
+            self.setPen(QPen(QColor("#E53E3E"), 2))  # Red color
+        else:
+            # FK connections: blue line
+            self.setPen(QPen(QColor("#3182CE"), 2))  # Blue color
+        
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
+        
+        # Create arrow head
+        self._create_arrow_head()
+    
+    def _create_arrow_head(self):
+        """Create an arrow head at the target end."""
+        self.arrow_head = QGraphicsPolygonItem(parent=self)
+        
+        # Arrow head color matches line color
+        if self.is_manual or self.source_column == "manual":
+            color = QColor("#E53E3E")
+        else:
+            color = QColor("#3182CE")
+        
+        self.arrow_head.setPen(QPen(color, 1))
+        self.arrow_head.setBrush(QBrush(color))
     
     def _update_line(self):
-        """Update the line position based on table positions."""
+        """Update the line position based on table positions using shortest path between edges."""
         source_rect = self.source_table.boundingRect()
         target_rect = self.target_table.boundingRect()
         
         source_pos = self.source_table.pos()
         target_pos = self.target_table.pos()
         
-        # Calculate connection points (center right of source, center left of target)
-        source_point = QPointF(
-            source_pos.x() + source_rect.width(),
+        # Calculate table centers
+        source_center = QPointF(
+            source_pos.x() + source_rect.width() / 2,
             source_pos.y() + source_rect.height() / 2
         )
-        target_point = QPointF(
-            target_pos.x(),
+        target_center = QPointF(
+            target_pos.x() + target_rect.width() / 2,
             target_pos.y() + target_rect.height() / 2
         )
         
-        self.setLine(source_point.x(), source_point.y(), 
-                    target_point.x(), target_point.y())
+        # Calculate potential connection points on all four sides of each table
+        source_points = {
+            'top': QPointF(source_center.x(), source_pos.y()),
+            'bottom': QPointF(source_center.x(), source_pos.y() + source_rect.height()),
+            'left': QPointF(source_pos.x(), source_center.y()),
+            'right': QPointF(source_pos.x() + source_rect.width(), source_center.y())
+        }
+        
+        target_points = {
+            'top': QPointF(target_center.x(), target_pos.y()),
+            'bottom': QPointF(target_center.x(), target_pos.y() + target_rect.height()),
+            'left': QPointF(target_pos.x(), target_center.y()),
+            'right': QPointF(target_pos.x() + target_rect.width(), target_center.y())
+        }
+        
+        # Find the shortest connection between any two edge points
+        min_distance = float('inf')
+        best_source_point = None
+        best_target_point = None
+        
+        for source_side, source_point in source_points.items():
+            for target_side, target_point in target_points.items():
+                # Calculate distance between points
+                dx = target_point.x() - source_point.x()
+                dy = target_point.y() - source_point.y()
+                distance = (dx * dx + dy * dy) ** 0.5
+                
+                # Prefer connections that don't cross the tables
+                if self._is_valid_connection(source_side, target_side, source_center, target_center):
+                    if distance < min_distance:
+                        min_distance = distance
+                        best_source_point = source_point
+                        best_target_point = target_point
+        
+        # Fallback to any shortest connection if no valid one found
+        if best_source_point is None:
+            for source_side, source_point in source_points.items():
+                for target_side, target_point in target_points.items():
+                    dx = target_point.x() - source_point.x()
+                    dy = target_point.y() - source_point.y()
+                    distance = (dx * dx + dy * dy) ** 0.5
+                    
+                    if distance < min_distance:
+                        min_distance = distance
+                        best_source_point = source_point
+                        best_target_point = target_point
+        
+        self.setLine(best_source_point.x(), best_source_point.y(), 
+                    best_target_point.x(), best_target_point.y())
+        
+        # Update arrow head position and rotation
+        self._update_arrow_head(best_source_point, best_target_point)
+    
+    def _is_valid_connection(self, source_side, target_side, source_center, target_center):
+        """Check if the connection between two sides makes geometric sense."""
+        # Horizontal relationship
+        if source_center.x() < target_center.x():  # Target is to the right
+            if source_side == 'right' and target_side == 'left':
+                return True
+        elif source_center.x() > target_center.x():  # Target is to the left
+            if source_side == 'left' and target_side == 'right':
+                return True
+        
+        # Vertical relationship
+        if source_center.y() < target_center.y():  # Target is below
+            if source_side == 'bottom' and target_side == 'top':
+                return True
+        elif source_center.y() > target_center.y():  # Target is above
+            if source_side == 'top' and target_side == 'bottom':
+                return True
+        
+        return False
+    
+    def _update_arrow_head(self, source_point, target_point):
+        """Update arrow head position and rotation."""
+        if not self.arrow_head:
+            return
+        
+        # Calculate arrow direction
+        dx = target_point.x() - source_point.x()
+        dy = target_point.y() - source_point.y()
+        length = math.sqrt(dx * dx + dy * dy)
+        
+        if length == 0:
+            return
+        
+        # Normalize direction
+        dx /= length
+        dy /= length
+        
+        # Arrow head size
+        arrow_length = 15
+        arrow_width = 8
+        
+        # Calculate arrow head points
+        tip = target_point
+        base1 = QPointF(
+            tip.x() - arrow_length * dx - arrow_width * dy,
+            tip.y() - arrow_length * dy + arrow_width * dx
+        )
+        base2 = QPointF(
+            tip.x() - arrow_length * dx + arrow_width * dy,
+            tip.y() - arrow_length * dy - arrow_width * dx
+        )
+        
+        # Create arrow polygon
+        arrow_polygon = QPolygonF([tip, base1, base2])
+        self.arrow_head.setPolygon(arrow_polygon)
+    
+    def contextMenuEvent(self, event):
+        """Handle context menu for connections."""
+        if self.is_manual or self.source_column == "manual":
+            menu = QMenu()
+            delete_action = menu.addAction("Delete Connection")
+            
+            action = menu.exec(event.screenPos())
+            if action == delete_action:
+                self._delete_connection()
+    
+    def _delete_connection(self):
+        """Delete this manual connection."""
+        scene = self.scene()
+        if scene:
+            # Remove from scene
+            scene.removeItem(self)
+            if self in scene.connection_items:
+                scene.connection_items.remove(self)
+            
+            # Remove from diagram model
+            if scene.diagram and self.is_manual:
+                scene.diagram.remove_connection(
+                    self.source_table.table.full_name,
+                    self.target_table.table.full_name
+                )
 
 
 class DiagramScene(QGraphicsScene):
@@ -442,6 +624,11 @@ class DiagramScene(QGraphicsScene):
         self.diagram = diagram
         self.table_items = {}  # table_name -> TableGraphicsItem
         self.connection_items = []  # List of ConnectionGraphicsItem
+        
+        # Connection creation state
+        self.connection_mode = False
+        self.connection_source = None
+        self.temp_connection_line = None
         
         self._setup_scene()
         
@@ -499,6 +686,42 @@ class DiagramScene(QGraphicsScene):
                         self.addItem(sequence_item)
                         self.table_items[item.object_name] = sequence_item
                         break
+        
+        # Load connections after all items are loaded
+        self._load_diagram_connections()
+    
+    def _load_diagram_connections(self):
+        """Load connections from the diagram."""
+        if not self.diagram:
+            return
+        
+        print(f"\n🔗 Loading {len(self.diagram.connections)} saved connections from diagram...")
+        
+        for connection in self.diagram.connections:
+            source_name = connection.source_table
+            target_name = connection.target_table
+            
+            print(f"📍 Loading connection: {source_name} -> {target_name}")
+            
+            # Find source and target table graphics items
+            source_item = self.table_items.get(source_name)
+            target_item = self.table_items.get(target_name)
+            
+            if source_item and target_item:
+                # Create connection graphics item (manual connections don't have specific columns)
+                connection_item = ConnectionGraphicsItem(source_item, target_item, None, None)
+                connection_item.is_manual = True  # Mark as manual connection
+                connection_item._setup_appearance()  # Refresh appearance with manual flag
+                self.addItem(connection_item)
+                self.connection_items.append(connection_item)
+                print(f"✅ Connection created successfully")
+            else:
+                print(f"❌ Could not find table items for connection:")
+                print(f"   Source '{source_name}': {'found' if source_item else 'NOT FOUND'}")
+                print(f"   Target '{target_name}': {'found' if target_item else 'NOT FOUND'}")
+                print(f"   Available tables: {list(self.table_items.keys())}")
+        
+        print(f"🔗 Finished loading connections. Total active: {len(self.connection_items)}")
     
     def add_table(self, table: Table, position: QPointF):
         """Add a table to the scene at the specified position."""
@@ -625,7 +848,8 @@ class DiagramScene(QGraphicsScene):
                 max_height = 0
     
     def _load_connections(self):
-        """Load foreign key connections from the project."""
+        """Load foreign key connections and manual connections."""
+        # Load FK connections from project
         for fk_key, fk_value in self.project.foreign_keys.items():
             source_table_column = fk_key.split('.')
             if len(source_table_column) >= 3:
@@ -645,13 +869,221 @@ class DiagramScene(QGraphicsScene):
                     )
                     self.addItem(connection)
                     self.connection_items.append(connection)
+        
+        # Manual connections are loaded by _load_diagram_connections()
+        # No need to duplicate the loading here
+    
+    def start_connection_mode(self, source_table):
+        """Start connection creation mode from the specified table."""
+        print(f"🟢 [DEBUG] Connection mode started with source table: {source_table.table.name}")
+        
+        self.connection_mode = True
+        self.connection_source = source_table
+        
+        # Create temporary line to follow cursor
+        self.temp_connection_line = QGraphicsLineItem()
+        self.temp_connection_line.setPen(QPen(QColor("#E53E3E"), 2, Qt.PenStyle.DashLine))
+        self.addItem(self.temp_connection_line)
+        
+        # Set initial line position
+        source_rect = source_table.boundingRect()
+        source_pos = source_table.pos()
+        start_point = QPointF(
+            source_pos.x() + source_rect.width(),
+            source_pos.y() + source_rect.height() / 2
+        )
+        self.temp_connection_line.setLine(start_point.x(), start_point.y(), 
+                                         start_point.x() + 50, start_point.y())
+        
+        # Change cursor to crosshair
+        for view in self.views():
+            view.setCursor(Qt.CursorShape.CrossCursor)
+    
+    def cancel_connection_mode(self):
+        """Cancel connection creation mode."""
+        print(f"🔴 [DEBUG] Canceling connection mode")
+        
+        if self.temp_connection_line:
+            self.removeItem(self.temp_connection_line)
+            self.temp_connection_line = None
+            print(f"🔴 [DEBUG] Temporary connection line removed")
+        
+        self.connection_mode = False
+        self.connection_source = None
+        print(f"🔴 [DEBUG] Connection mode variables reset")
+        
+        # Restore normal cursor
+        for view in self.views():
+            view.setCursor(Qt.CursorShape.ArrowCursor)
+        print(f"🔴 [DEBUG] Cursor restored to normal")
+    
+    def create_manual_connection(self, target_table):
+        """Create a manual connection between source and target tables."""
+        print(f"🟢 [DEBUG] create_manual_connection called")
+        print(f"🟢 [DEBUG] Source: {self.connection_source.table.name if self.connection_source else 'None'}")
+        print(f"🟢 [DEBUG] Target: {target_table.table.name if target_table else 'None'}")
+        
+        if not self.connection_source or not target_table:
+            print(f"🟢 [DEBUG] Missing source or target - aborting")
+            return
+        
+        # Don't connect table to itself
+        if self.connection_source == target_table:
+            print(f"🟢 [DEBUG] Cannot connect table to itself - canceling")
+            self.cancel_connection_mode()
+            return
+        
+        # Create manual connection (no specific columns for manual connections)
+        connection = ConnectionGraphicsItem(
+            self.connection_source,
+            target_table,
+            None,  # No specific source column for manual connections
+            None   # No specific target column for manual connections
+        )
+        connection.is_manual = True  # Mark as manual connection
+        print(f"🟢 [DEBUG] Connection object created successfully")
+        
+        # Update appearance after setting the flag
+        connection._setup_appearance()
+        print(f"🟢 [DEBUG] Connection appearance setup complete")
+        
+        self.addItem(connection)
+        self.connection_items.append(connection)
+        print(f"🟢 [DEBUG] Connection added to scene. Total connections: {len(self.connection_items)}")
+        
+        # Save to diagram if available
+        if self.diagram:
+            self.diagram.add_connection(
+                self.connection_source.table.full_name,
+                target_table.table.full_name,
+                'manual'
+            )
+            print(f"🟢 [DEBUG] Connection saved to diagram model")
+        else:
+            print(f"🟢 [DEBUG] No diagram available - connection not persisted")
+        
+        # Clean up
+        print(f"🟢 [DEBUG] Cleaning up connection mode...")
+        self.cancel_connection_mode()
+
+        # Refresh diagram view
+        for view in self.views():
+            view.viewport().update()
     
     def mousePressEvent(self, event):
         """Handle mouse press events."""
+        if self.connection_mode:
+            print(f"🔵 [DEBUG] Mouse click in connection mode: {event.button()}")
+            
+            # Handle connection creation
+            if event.button() == Qt.MouseButton.LeftButton:
+                print(f"🔵 [DEBUG] Left click detected - searching for target table...")
+                
+                # Find the table item under the cursor (ignore temp connection line)
+                item = self.itemAt(event.scenePos(), QTransform())
+                target_table = None
+                
+                # Skip the temporary connection line
+                if item == self.temp_connection_line:
+                    # Get items under cursor, excluding the temp line
+                    items = self.items(event.scenePos())
+                    item = None
+                    for potential_item in items:
+                        if potential_item != self.temp_connection_line:
+                            item = potential_item
+                            break
+                
+                print(f"🔵 [DEBUG] Item at click position: {type(item).__name__ if item else 'None'}")
+                
+                # Check if the clicked item is a table or part of a table
+                if isinstance(item, TableGraphicsItem):
+                    target_table = item
+                    print(f"🔵 [DEBUG] Found target table directly: {target_table.table.name}")
+                else:
+                    # Check if it's a child item of a table (like text items)
+                    parent = item
+                    while parent and not isinstance(parent, TableGraphicsItem):
+                        parent = parent.parentItem()
+                    if isinstance(parent, TableGraphicsItem):
+                        target_table = parent
+                        print(f"🔵 [DEBUG] Found target table via parent: {target_table.table.name}")
+                    else:
+                        print(f"🔵 [DEBUG] No table found under click")
+                
+                if target_table:
+                    if target_table == self.connection_source:
+                        print(f"🔵 [DEBUG] Cannot connect table to itself: {target_table.table.name}")
+                    else:
+                        print(f"🔵 [DEBUG] Creating connection: {self.connection_source.table.name} -> {target_table.table.name}")
+                    
+                    # Complete the connection
+                    self.create_manual_connection(target_table)
+                else:
+                    print(f"🔵 [DEBUG] Clicking empty space - canceling connection mode")
+                    # Cancel if clicking empty space
+                    self.cancel_connection_mode()
+            elif event.button() == Qt.MouseButton.RightButton:
+                print(f"🔵 [DEBUG] Right click - canceling connection mode")
+                # Cancel connection mode on right-click
+                self.cancel_connection_mode()
+            
+            event.accept()  # Mark event as handled
+            return
+        
         super().mousePressEvent(event)
         
         # Selection is now handled by the selectionChanged signal
         # This allows for proper multi-selection with Ctrl/Shift keys
+    
+    def mouseMoveEvent(self, event):
+        """Handle mouse move events."""
+        if self.connection_mode and self.temp_connection_line:
+            # Update temporary connection line to follow cursor
+            source_rect = self.connection_source.boundingRect()
+            source_pos = self.connection_source.pos()
+            start_point = QPointF(
+                source_pos.x() + source_rect.width(),
+                source_pos.y() + source_rect.height() / 2
+            )
+            self.temp_connection_line.setLine(start_point.x(), start_point.y(),
+                                             event.scenePos().x(), event.scenePos().y())
+            
+            # Debug: Track what's under cursor (ignore temp connection line)
+            item = self.itemAt(event.scenePos(), QTransform())
+            target_table = None
+            
+            # Skip the temporary connection line
+            if item == self.temp_connection_line:
+                # Get items under cursor, excluding the temp line
+                items = self.items(event.scenePos())
+                item = None
+                for potential_item in items:
+                    if potential_item != self.temp_connection_line:
+                        item = potential_item
+                        break
+            
+            if isinstance(item, TableGraphicsItem):
+                target_table = item
+                print(f"🟡 [DEBUG] Cursor over table (direct): {target_table.table.name}")
+            elif item:
+                # Check if it's a child item of a table
+                parent = item
+                while parent and not isinstance(parent, TableGraphicsItem):
+                    parent = parent.parentItem()
+                if isinstance(parent, TableGraphicsItem):
+                    target_table = parent
+                    print(f"🟡 [DEBUG] Cursor over table (via child): {target_table.table.name}")
+                else:
+                    print(f"🟡 [DEBUG] Cursor over item: {type(item).__name__}")
+            else:
+                print(f"🟡 [DEBUG] Cursor over empty space")
+            
+            # Check if it's a valid target
+            if target_table:
+                is_valid = target_table != self.connection_source
+                print(f"🟡 [DEBUG] Valid target: {is_valid} (source: {self.connection_source.table.name})")
+        
+        super().mouseMoveEvent(event)
     
     def mouseReleaseEvent(self, event):
         """Handle mouse release events to save position changes."""
@@ -673,8 +1105,11 @@ class DiagramScene(QGraphicsScene):
                     item.setSelected(True)
             event.accept()
         elif event.key() == Qt.Key.Key_Escape:
-            # Escape: Clear selection
-            self.clearSelection()
+            # Escape: Cancel connection mode or clear selection
+            if self.connection_mode:
+                self.cancel_connection_mode()
+            else:
+                self.clearSelection()
             event.accept()
         else:
             super().keyPressEvent(event)
@@ -756,7 +1191,11 @@ class DiagramGraphicsView(QGraphicsView):
         """Handle mouse press events for canvas panning."""
         from PyQt6.QtCore import Qt
         
-        if event.button() == Qt.MouseButton.RightButton:
+        # Always let the scene handle events first
+        super().mousePressEvent(event)
+        
+        # Only handle panning if the scene didn't handle the event
+        if not event.isAccepted() and event.button() == Qt.MouseButton.RightButton:
             # Check if we're clicking on empty space (not on an item)
             scene_pos = self.mapToScene(event.position().toPoint())
             item_at_pos = self.scene().itemAt(scene_pos, self.transform())
@@ -767,10 +1206,6 @@ class DiagramGraphicsView(QGraphicsView):
                 self._last_pan_point = event.position().toPoint()
                 self.setCursor(Qt.CursorShape.ClosedHandCursor)
                 event.accept()
-                return
-        
-        # Let the base class handle other events (selection, context menus on items, etc.)
-        super().mousePressEvent(event)
     
     def mouseMoveEvent(self, event):
         """Handle mouse move events for canvas panning."""
