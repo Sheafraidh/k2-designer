@@ -99,7 +99,7 @@ class TableDialog(QDialog):
         color_layout.addStretch()
         
         # Store current color value
-        self.current_color = "#FFFFFF"
+        self.current_color = "#4C4C4C"
         self._color_manually_set = False
         
         color_widget = QWidget()
@@ -211,12 +211,35 @@ class TableDialog(QDialog):
             data_type_item = QTableWidgetItem(column.data_type)
             self.columns_table.setItem(row, 1, data_type_item)
             
-            self.columns_table.setItem(row, 2, QTableWidgetItem("Yes" if column.nullable else "No"))
+            # Nullable checkbox
+            self._setup_nullable_cell(row, column.nullable)
+            
             self.columns_table.setItem(row, 3, QTableWidgetItem(column.default or ""))
             self.columns_table.setItem(row, 4, QTableWidgetItem(column.comment or ""))
             
             # Domain column with combobox
             self._setup_domain_cell(row, column.domain or "")
+    
+    def _setup_nullable_cell(self, row, nullable=True):
+        """Setup nullable checkbox for a specific cell."""
+        # Create a widget to center the checkbox
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        checkbox = QCheckBox()
+        checkbox.setChecked(nullable)
+        
+        # Center the checkbox
+        layout.addStretch()
+        layout.addWidget(checkbox)
+        layout.addStretch()
+        
+        # Set the widget as the cell widget
+        self.columns_table.setCellWidget(row, 2, widget)
+        
+        # Store checkbox reference for easy access
+        widget.checkbox = checkbox
     
     def _setup_domain_cell(self, row, selected_domain=""):
         """Setup domain combobox for a specific cell."""
@@ -300,7 +323,10 @@ class TableDialog(QDialog):
         
         self.columns_table.setItem(row, 0, QTableWidgetItem(""))
         self.columns_table.setItem(row, 1, QTableWidgetItem(""))
-        self.columns_table.setItem(row, 2, QTableWidgetItem("Yes"))
+        
+        # Setup nullable checkbox for new row (default to True/nullable)
+        self._setup_nullable_cell(row, True)
+        
         self.columns_table.setItem(row, 3, QTableWidgetItem(""))
         self.columns_table.setItem(row, 4, QTableWidgetItem(""))
         
@@ -350,10 +376,10 @@ class TableDialog(QDialog):
             
             # Get default color for stereotype (similar to Table model logic)
             color_map = {
-                Stereotype.BUSINESS: "#E3F2FD",  # Light blue
-                Stereotype.TECHNICAL: "#F3E5F5"  # Light purple
+                Stereotype.BUSINESS: "#081B2A",  # Light blue
+                Stereotype.TECHNICAL: "#360A3C"  # Light purple
             }
-            default_color = color_map.get(stereotype, "#FFFFFF")
+            default_color = color_map.get(stereotype, "#464646")
             self._set_color(default_color)
     
     def _on_ok(self):
@@ -408,9 +434,14 @@ class TableDialog(QDialog):
         for row in range(self.columns_table.rowCount()):
             name_item = self.columns_table.item(row, 0)
             data_type_item = self.columns_table.item(row, 1)
-            nullable_item = self.columns_table.item(row, 2)
             default_item = self.columns_table.item(row, 3)
             comment_item = self.columns_table.item(row, 4)
+            
+            # Get nullable value from checkbox widget
+            nullable_widget = self.columns_table.cellWidget(row, 2)
+            nullable = True  # Default value
+            if nullable_widget and hasattr(nullable_widget, 'checkbox'):
+                nullable = nullable_widget.checkbox.isChecked()
             
             # Get domain from combobox widget
             domain_combo = self.columns_table.cellWidget(row, 5)
@@ -423,7 +454,6 @@ class TableDialog(QDialog):
                 data_type = data_type_item.text().strip()
                 
                 if name and data_type:
-                    nullable = nullable_item.text().lower() == "yes" if nullable_item else True
                     default = default_item.text().strip() if default_item else None
                     comment = comment_item.text().strip() if comment_item else None
                     
@@ -466,6 +496,17 @@ class TableDialog(QDialog):
                     return False
         
         return True
+    
+    def update_table(self):
+        """Update the table object and notify parent of changes."""
+        # Find the main window to emit object modification signal
+        main_window = self.parent()
+        while main_window and main_window.__class__.__name__ != 'MainWindow':
+            main_window = main_window.parent()
+        
+        if main_window and hasattr(main_window, '_on_object_modified'):
+            # Notify main window that the table was modified
+            main_window._on_object_modified(self.table)
     
     def get_table(self) -> Table:
         """Get the table object."""

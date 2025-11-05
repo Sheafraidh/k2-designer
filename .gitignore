@@ -1,6 +1,13 @@
 /.venv
-/debug_drag_drop.py
-/test_color_picker.py
-/test_multiple_selection.py
-/test_project1.k2p
-/test_project2.k2p
+
+# test projects
+*.k2p
+
+# __pycache__ directories
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# generated files
+/generated/*

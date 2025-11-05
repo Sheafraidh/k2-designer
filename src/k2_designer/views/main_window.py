@@ -85,52 +85,68 @@ class MainWindow(QMainWindow):
         """Create all menu and toolbar actions."""
         # File actions
         self.new_action = QAction("&New Project", self)
+        self.new_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_FileIcon))
         self.new_action.setShortcut(QKeySequence.StandardKey.New)
         self.new_action.setStatusTip("Create a new project")
         self.new_action.triggered.connect(self._new_project)
         
         self.open_action = QAction("&Open Project", self)
+        self.open_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_DirOpenIcon))
         self.open_action.setShortcut(QKeySequence.StandardKey.Open)
         self.open_action.setStatusTip("Open an existing project")
         self.open_action.triggered.connect(self._open_project)
         
         self.save_action = QAction("&Save Project", self)
+        self.save_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_DialogSaveButton))
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
         self.save_action.setStatusTip("Save the current project")
         self.save_action.triggered.connect(self._save_project)
         
         self.save_as_action = QAction("Save Project &As...", self)
+        self.save_as_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_DialogSaveButton))
         self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         self.save_as_action.setStatusTip("Save the project with a new name")
         self.save_as_action.triggered.connect(self._save_project_as)
         
         self.exit_action = QAction("E&xit", self)
+        self.exit_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_DialogCloseButton))
         self.exit_action.setShortcut(QKeySequence.StandardKey.Quit)
         self.exit_action.setStatusTip("Exit the application")
         self.exit_action.triggered.connect(self.close)
         
         # View actions
         self.new_diagram_action = QAction("New &Diagram", self)
-        self.new_diagram_action.setStatusTip("Create a new diagram window")
+        self.new_diagram_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_FileDialogNewFolder))
+        self.new_diagram_action.setStatusTip("Create a new diagram")
         self.new_diagram_action.triggered.connect(self._new_diagram)
+        
+        # Tools actions
+        self.generate_action = QAction("&Generate SQL", self)
+        self.generate_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_FileDialogDetailedView))
+        self.generate_action.setStatusTip("Generate SQL scripts for database objects")
+        self.generate_action.triggered.connect(self._generate_sql)
         
         # Window actions
         self.close_all_action = QAction("Close &All Diagrams", self)
+        self.close_all_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_DialogCloseButton))
         self.close_all_action.setStatusTip("Close all open diagram tabs")
         self.close_all_action.triggered.connect(self._close_all_diagrams)
         
         self.next_tab_action = QAction("&Next Diagram", self)
+        self.next_tab_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_ArrowRight))
         self.next_tab_action.setShortcut("Ctrl+Tab")
         self.next_tab_action.setStatusTip("Switch to next diagram tab")
         self.next_tab_action.triggered.connect(self._next_tab)
         
         self.prev_tab_action = QAction("&Previous Diagram", self)
+        self.prev_tab_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_ArrowLeft))
         self.prev_tab_action.setShortcut("Ctrl+Shift+Tab")
         self.prev_tab_action.setStatusTip("Switch to previous diagram tab")
         self.prev_tab_action.triggered.connect(self._prev_tab)
         
         # Help actions
         self.about_action = QAction("&About", self)
+        self.about_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_MessageBoxInformation))
         self.about_action.setStatusTip("Show application information")
         self.about_action.triggered.connect(self._about)
     
@@ -147,6 +163,10 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.save_as_action)
         file_menu.addSeparator()
         file_menu.addAction(self.exit_action)
+        
+        # Tools menu
+        tools_menu = menubar.addMenu("&Tools")
+        tools_menu.addAction(self.generate_action)
         
         # View menu
         view_menu = menubar.addMenu("&View")
@@ -174,7 +194,7 @@ class MainWindow(QMainWindow):
         main_toolbar.addAction(self.open_action)
         main_toolbar.addAction(self.save_action)
         main_toolbar.addSeparator()
-        main_toolbar.addAction(self.new_diagram_action)
+        main_toolbar.addAction(self.generate_action)
     
     def _connect_signals(self):
         """Connect signals between components."""
@@ -199,6 +219,17 @@ class MainWindow(QMainWindow):
         """Handle when an object is modified in the properties panel."""
         # Refresh the object browser to show updated information
         self.object_browser._refresh_tree()
+        
+        # Refresh all open diagrams to show updated object information
+        self._refresh_all_diagrams()
+    
+    def _refresh_all_diagrams(self):
+        """Refresh all open diagram tabs to show updated object information."""
+        for i in range(self.tab_widget.count()):
+            widget = self.tab_widget.widget(i)
+            if widget and hasattr(widget, 'diagram') and hasattr(widget, 'scene'):
+                # This is a diagram view, refresh it
+                widget.refresh_diagram()
     
     def _on_diagram_selection_changed(self, obj):
         """Handle when selection changes in a diagram."""
@@ -314,6 +345,9 @@ class MainWindow(QMainWindow):
     def _new_diagram(self):
         """Create a new diagram."""
         if not self.current_project:
+            QMessageBox.warning(
+                self, "No Project", "Please open or create a project first."
+            )
             return
         
         from ..dialogs import DiagramDialog
@@ -326,6 +360,19 @@ class MainWindow(QMainWindow):
             self.current_project.add_diagram(diagram)
             self.object_browser._refresh_tree()
             self._open_diagram(diagram)
+    
+    def _generate_sql(self):
+        """Open the SQL generation dialog."""
+        if not self.current_project:
+            QMessageBox.warning(
+                self, "No Project", "Please open or create a project first."
+            )
+            return
+        
+        from ..dialogs import GenerateDialog
+        
+        dialog = GenerateDialog(self.current_project, parent=self)
+        dialog.exec()
     
     def _open_diagram(self, diagram):
         """Open a specific diagram in a new tab."""

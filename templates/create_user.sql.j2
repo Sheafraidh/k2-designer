@@ -1,0 +1,20 @@
+-- Create user {{ owner.name }}
+CREATE USER {{ owner.name }}
+{%- if owner.default_tablespace %}
+    DEFAULT TABLESPACE {{ owner.default_tablespace }}
+{%- endif %}
+{%- if owner.temp_tablespace %}
+    TEMPORARY TABLESPACE {{ owner.temp_tablespace }}
+{%- endif %}
+{%- if owner.default_index_tablespace %}
+    DEFAULT TABLESPACE FOR INDEXES {{ owner.default_index_tablespace }}
+{%- endif %};
+
+-- Grant basic privileges
+GRANT CONNECT TO {{ owner.name }};
+GRANT RESOURCE TO {{ owner.name }};
+
+{%- if owner.comment %}
+
+COMMENT ON USER {{ owner.name }} IS '{{ owner.comment }}';
+{%- endif %}

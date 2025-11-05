@@ -255,10 +255,8 @@ class TableGraphicsItem(QGraphicsRectItem):
                     
                     if dialog.exec() == dialog.DialogCode.Accepted:
                         dialog.update_table()
-                        # Refresh the table display
-                        self._refresh_display()
-                        # Refresh object browser
-                        widget.object_browser._refresh_tree()
+                        # The update_table method handles main window notification
+                        # which will refresh all diagrams and the object browser
     
     def _remove_from_diagram(self):
         """Remove this table from the diagram (not from project)."""
@@ -658,6 +656,96 @@ class DiagramScene(QGraphicsScene):
         for item in self.table_items.values():
             if isinstance(item, TableGraphicsItem):
                 item._refresh_display()
+    
+    def refresh_all_items(self):
+        """Refresh all items in the scene to reflect data changes without losing positions."""
+        try:
+            # Create a mapping of current table items to their positions
+            table_positions = {}
+            tables_to_remove = []
+            
+            # First pass: Update existing table items and track positions
+            for item_name, table_item in list(self.table_items.items()):
+                if isinstance(table_item, TableGraphicsItem):
+                    # Store position for potential recreation
+                    table_positions[table_item.table] = table_item.pos()
+                    
+                    # Check if this table still exists in the project
+                    table_found = False
+                    old_table_name = f"{table_item.table.owner}.{table_item.table.name}"
+                    
+                    for table in self.project.tables:
+                        # Match by name and owner instead of object identity
+                        current_table_name = f"{table.owner}.{table.name}"
+                        if (current_table_name == item_name or 
+                            current_table_name == old_table_name or
+                            table == table_item.table):  # Try object identity as fallback
+                            
+                            # Update the reference and refresh
+                            table_item.table = table
+                            table_item._refresh_display()
+                            
+                            # Check if name changed - update the key
+                            new_name = current_table_name
+                            if new_name != item_name:
+                                self.table_items[new_name] = table_item
+                                del self.table_items[item_name]
+                                # Update diagram item name if needed
+                                if self.diagram:
+                                    for diag_item in self.diagram.items:
+                                        if diag_item.object_name == item_name:
+                                            diag_item.object_name = new_name
+                                            break
+                            
+                            table_found = True
+                            break
+                    
+                    # If table no longer exists, mark for removal
+                    if not table_found:
+                        tables_to_remove.append((item_name, table_item))
+            
+            # Remove tables that no longer exist
+            for item_name, table_item in tables_to_remove:
+                self.removeItem(table_item)
+                del self.table_items[item_name]
+            
+            # Second pass: Add any new tables from diagram
+            if self.diagram:
+                for item in self.diagram.items:
+                    if item.object_type == 'table' and item.object_name not in self.table_items:
+                        # Find the table in the project
+                        for table in self.project.tables:
+                            if f"{table.owner}.{table.name}" == item.object_name:
+                                table_item = TableGraphicsItem(table)
+                                table_item.setPos(item.x, item.y)
+                                self.addItem(table_item)
+                                self.table_items[item.object_name] = table_item
+                                break
+            
+            # Refresh connections (they might need to be recreated if table structures changed)
+            # Remove existing connections
+            for connection in list(self.connection_items):
+                self.removeItem(connection)
+            self.connection_items.clear()
+            
+            # Reload connections
+            self._load_connections()
+            if self.diagram:
+                self._load_diagram_connections()
+            
+        except Exception as e:
+            print(f"❌ Error during diagram refresh: {e}")
+            import traceback
+            traceback.print_exc()
+            # Fall back to full refresh
+            self.clear()
+            self.table_items.clear()
+            self.connection_items.clear()
+            if self.diagram:
+                self._load_diagram_items()
+            else:
+                self._load_tables()
+                self._load_connections()
     
     def _load_diagram_items(self):
         """Load items from the diagram."""
@@ -1380,11 +1468,12 @@ class DiagramView(QWidget):
     
     def refresh_diagram(self):
         """Refresh the entire diagram."""
-        # Clear existing items
-        self.scene.clear()
-        self.scene.table_items.clear()
-        self.scene.connection_items.clear()
-
-        # Reload everything
-        self.scene._load_tables()
-        self.scene._load_connections()
+        if hasattr(self, 'scene') and self.scene:
+            self.scene.refresh_all_items()
+        else:
+            # Fallback: Clear and reload everything
+            self.scene.clear()
+            self.scene.table_items.clear()
+            self.scene.connection_items.clear()
+            self.scene._load_tables()
+            self.scene._load_connections()

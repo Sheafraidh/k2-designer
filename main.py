@@ -5,6 +5,7 @@ Main entry point for the K2 Designer application.
 import sys
 import os
 import warnings
+import traceback
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
 
@@ -18,8 +19,66 @@ if sys.platform == "darwin":  # macOS
                           message=".*NSOpenPanel.*overrides.*identifier.*")
 
 
+def handle_exception(exc_type, exc_value, exc_traceback):
+    """Global exception handler to show detailed error information for debugging."""
+    if issubclass(exc_type, KeyboardInterrupt):
+        # Allow Ctrl+C to work normally
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    
+    # Print detailed exception information to console
+    print("\n" + "="*80)
+    print("🚨 UNHANDLED EXCEPTION OCCURRED 🚨")
+    print("="*80)
+    print(f"Exception Type: {exc_type.__name__}")
+    print(f"Exception Message: {exc_value}")
+    print("\nFull Traceback:")
+    print("-" * 40)
+    
+    # Print the full traceback
+    traceback.print_exception(exc_type, exc_value, exc_traceback)
+    
+    print("-" * 40)
+    print("🔍 Debug Information:")
+    print(f"   - Python Version: {sys.version}")
+    print(f"   - Platform: {sys.platform}")
+    print(f"   - Working Directory: {os.getcwd()}")
+    
+    # Show local variables in the failing frame if available
+    if exc_traceback:
+        tb = exc_traceback
+        while tb.tb_next:
+            tb = tb.tb_next  # Get the innermost frame
+        
+        frame = tb.tb_frame
+        print(f"   - Failing Function: {frame.f_code.co_name}")
+        print(f"   - Failing File: {frame.f_code.co_filename}:{tb.tb_lineno}")
+        
+        # Show local variables (be careful not to show sensitive data)
+        if frame.f_locals:
+            print("\n🔧 Local Variables in Failing Frame:")
+            for name, value in frame.f_locals.items():
+                try:
+                    # Limit output length and avoid showing large objects
+                    value_str = str(value)
+                    if len(value_str) > 100:
+                        value_str = value_str[:97] + "..."
+                    print(f"   {name} = {value_str}")
+                except:
+                    print(f"   {name} = <unable to display>")
+    
+    print("="*80)
+    print("💡 This detailed error information is shown for debugging purposes.")
+    print("   In production, you may want to disable this by removing the")
+    print("   sys.excepthook assignment in main.py")
+    print("="*80 + "\n")
+
+
 def main():
     """Main application entry point."""
+    # Install global exception handler for debugging
+    sys.excepthook = handle_exception
+    
     # Suppress macOS-specific warnings on stderr
     if sys.platform == "darwin":
         import io

@@ -83,8 +83,9 @@ k2-designer/
 │   │   └── table_dialog.py
 │   └── resources/            # UI resources
 ├── templates/                # Jinja2 SQL templates
-│   ├── create_table.sql
-│   └── create_sequence.sql
+│   ├── create_table.sql.j2
+│   ├── create_sequence.sql.j2
+│   └── create_user.sql.j2
 └── tests/                    # Unit tests
 ```
 
