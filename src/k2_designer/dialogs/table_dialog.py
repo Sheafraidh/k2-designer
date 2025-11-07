@@ -80,6 +80,8 @@ class TableDialog(QDialog):
         self.resize(750, 500)  # Increased width to accommodate all columns including domain
         
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(5, 5, 5, 5)  # Reduced margins around dialog
+        layout.setSpacing(5)  # Reduced spacing between elements
         
         # Tab widget
         self.tab_widget = QTabWidget()
@@ -96,8 +98,15 @@ class TableDialog(QDialog):
         
         layout.addWidget(self.tab_widget)
         
+        # Move tips to the bottom
+        self.tips_label = QLabel("Tips: • Multi-select: Ctrl+click to toggle, Shift+click for range • Navigation: Enter moves to next row, Tab moves to next column • Filtering: Use filter controls above to find specific columns")
+        self.tips_label.setStyleSheet("color: #666; font-style: italic; font-size: 11px;")
+        self.tips_label.setWordWrap(True)
+        layout.addWidget(self.tips_label)
+        
         # Button layout
         button_layout = QHBoxLayout()
+        button_layout.setContentsMargins(0, 5, 0, 0)  # Small margin only on top
         button_layout.addStretch()
         
         self.ok_button = QPushButton("OK")
@@ -111,8 +120,11 @@ class TableDialog(QDialog):
     def _setup_basic_tab(self, tab_widget):
         """Setup the basic properties tab."""
         layout = QVBoxLayout(tab_widget)
+        layout.setContentsMargins(5, 5, 5, 5)  # Reduced margins within tab
+        layout.setSpacing(5)  # Reduced spacing between elements
         
         form_layout = QFormLayout()
+        form_layout.setVerticalSpacing(8)  # Reduced vertical spacing between form rows
         
         self.name_edit = QLineEdit()
         self.name_edit.setMaxLength(50)
@@ -154,7 +166,7 @@ class TableDialog(QDialog):
         form_layout.addRow("Editionable:", self.editionable_check)
         
         self.comment_edit = QTextEdit()
-        self.comment_edit.setMaximumHeight(80)
+        self.comment_edit.setMaximumHeight(60)  # Reduced height for more compact design
         form_layout.addRow("Comment:", self.comment_edit)
         
         layout.addLayout(form_layout)
@@ -169,6 +181,107 @@ class TableDialog(QDialog):
     def _setup_columns_tab(self, tab_widget):
         """Setup the columns tab."""
         layout = QVBoxLayout(tab_widget)
+        layout.setContentsMargins(5, 5, 5, 5)  # Reduced margins within tab
+        layout.setSpacing(5)  # Reduced spacing between elements
+        
+        # Filter controls
+        filter_group = QGroupBox("Filter Columns")
+        filter_layout = QVBoxLayout(filter_group)
+        filter_layout.setContentsMargins(5, 5, 5, 5)  # Compact filter group
+        filter_layout.setSpacing(3)  # Minimal spacing between label and input rows
+        
+        # Create labels row
+        labels_layout = QHBoxLayout()
+        
+        # Create labels with fixed widths to match inputs
+        name_label = QLabel("Name")
+        name_label.setFixedWidth(120)
+        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        datatype_label = QLabel("Data Type") 
+        datatype_label.setFixedWidth(130)
+        datatype_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        nullable_label = QLabel("Nullable")
+        nullable_label.setFixedWidth(80)
+        nullable_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        default_label = QLabel("Default")
+        default_label.setFixedWidth(100)
+        default_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        comment_label = QLabel("Comment")
+        comment_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        domain_label = QLabel("Domain")
+        domain_label.setFixedWidth(120)
+        domain_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        clear_label = QLabel("")  # Empty space for clear button
+        clear_label.setFixedWidth(100)
+        
+        labels_layout.addWidget(name_label)
+        labels_layout.addWidget(datatype_label)
+        labels_layout.addWidget(nullable_label)
+        labels_layout.addWidget(default_label)
+        labels_layout.addWidget(comment_label)
+        labels_layout.addWidget(domain_label)
+        labels_layout.addWidget(clear_label)
+        
+        # Create filter inputs row with matching widths
+        inputs_layout = QHBoxLayout()
+        
+        # Create filter inputs for each column
+        self.filter_name = QLineEdit()
+        self.filter_name.setPlaceholderText("Filter Name...")
+        self.filter_name.setFixedWidth(120)
+        self.filter_name.textChanged.connect(self._apply_filters)
+        
+        self.filter_datatype = QLineEdit()
+        self.filter_datatype.setPlaceholderText("Filter Data Type...")
+        self.filter_datatype.setFixedWidth(130)
+        self.filter_datatype.textChanged.connect(self._apply_filters)
+        
+        self.filter_nullable = QComboBox()
+        self.filter_nullable.addItems(["All", "Nullable", "Not Nullable"])
+        self.filter_nullable.setFixedWidth(80)
+        self.filter_nullable.currentTextChanged.connect(self._apply_filters)
+        
+        self.filter_default = QLineEdit()
+        self.filter_default.setPlaceholderText("Filter Default...")
+        self.filter_default.setFixedWidth(100)
+        self.filter_default.textChanged.connect(self._apply_filters)
+        
+        self.filter_comment = QLineEdit()
+        self.filter_comment.setPlaceholderText("Filter Comment...")
+        self.filter_comment.textChanged.connect(self._apply_filters)
+        
+        self.filter_domain = QComboBox()
+        self.filter_domain.setEditable(True)
+        self.filter_domain.setFixedWidth(120)
+        self.filter_domain.lineEdit().setPlaceholderText("Filter Domain...")
+        self.filter_domain.currentTextChanged.connect(self._apply_filters)
+        self.filter_domain.lineEdit().textChanged.connect(self._apply_filters)
+        
+        # Clear filters button
+        self.clear_filters_btn = QPushButton("Clear Filters")
+        self.clear_filters_btn.setFixedWidth(100)
+        self.clear_filters_btn.clicked.connect(self._clear_filters)
+        
+        # Add widgets to inputs layout
+        inputs_layout.addWidget(self.filter_name)
+        inputs_layout.addWidget(self.filter_datatype)
+        inputs_layout.addWidget(self.filter_nullable)
+        inputs_layout.addWidget(self.filter_default)
+        inputs_layout.addWidget(self.filter_comment)
+        inputs_layout.addWidget(self.filter_domain)
+        inputs_layout.addWidget(self.clear_filters_btn)
+        
+        # Add both layouts to filter group
+        filter_layout.addLayout(labels_layout)
+        filter_layout.addLayout(inputs_layout)
+        
+        layout.addWidget(filter_group)
         
         # Columns table
         self.columns_table = MultiSelectTableWidget()
@@ -207,6 +320,8 @@ class TableDialog(QDialog):
         
         # Column buttons
         column_buttons = QHBoxLayout()
+        column_buttons.setContentsMargins(0, 5, 0, 0)  # Small margin only on top
+        column_buttons.setSpacing(5)  # Reduced spacing between buttons
         self.add_column_btn = QPushButton("Add Column")
         self.edit_column_btn = QPushButton("Edit Column")
         self.remove_column_btn = QPushButton("Remove Column")
@@ -217,12 +332,95 @@ class TableDialog(QDialog):
         column_buttons.addStretch()
         
         layout.addLayout(column_buttons)
+    
+    def _setup_filter_domains(self):
+        """Setup the domain filter combobox with available domains."""
+        self.filter_domain.clear()
+        self.filter_domain.addItem("All")
+        self.filter_domain.addItem("No Domain")
         
-        # Add multi-select info label
-        self.multiselect_label = QLabel("Tips: • Multi-select: Ctrl+click to toggle, Shift+click for range • Navigation: Enter moves to next row, Tab moves to next column")
-        self.multiselect_label.setStyleSheet("color: #666; font-style: italic; font-size: 11px;")
-        self.multiselect_label.setWordWrap(True)
-        layout.addWidget(self.multiselect_label)
+        # Add available domains
+        if self.project and hasattr(self.project, 'domains'):
+            for domain in self.project.domains:
+                self.filter_domain.addItem(domain.name)
+    
+    def _apply_filters(self):
+        """Apply filters to show/hide rows based on filter criteria."""
+        name_filter = self.filter_name.text().lower()
+        datatype_filter = self.filter_datatype.text().lower()
+        nullable_filter = self.filter_nullable.currentText()
+        default_filter = self.filter_default.text().lower()
+        comment_filter = self.filter_comment.text().lower()
+        domain_filter = self.filter_domain.currentText()
+        
+        for row in range(self.columns_table.rowCount()):
+            show_row = True
+            
+            # Check name filter
+            if name_filter:
+                name_item = self.columns_table.item(row, 0)
+                if not name_item or name_filter not in name_item.text().lower():
+                    show_row = False
+            
+            # Check data type filter
+            if show_row and datatype_filter:
+                datatype_item = self.columns_table.item(row, 1)
+                if not datatype_item or datatype_filter not in datatype_item.text().lower():
+                    show_row = False
+            
+            # Check nullable filter
+            if show_row and nullable_filter != "All":
+                nullable_widget = self.columns_table.cellWidget(row, 2)
+                if nullable_widget and hasattr(nullable_widget, 'checkbox'):
+                    is_nullable = nullable_widget.checkbox.isChecked()
+                    if nullable_filter == "Nullable" and not is_nullable:
+                        show_row = False
+                    elif nullable_filter == "Not Nullable" and is_nullable:
+                        show_row = False
+            
+            # Check default filter
+            if show_row and default_filter:
+                default_item = self.columns_table.item(row, 3)
+                if not default_item or default_filter not in default_item.text().lower():
+                    show_row = False
+            
+            # Check comment filter
+            if show_row and comment_filter:
+                comment_item = self.columns_table.item(row, 4)
+                if not comment_item or comment_filter not in comment_item.text().lower():
+                    show_row = False
+            
+            # Check domain filter
+            if show_row and domain_filter not in ["All", ""]:
+                domain_combo = self.columns_table.cellWidget(row, 5)
+                if domain_combo and isinstance(domain_combo, QComboBox):
+                    current_domain = domain_combo.currentText()
+                    if domain_filter == "No Domain":
+                        if current_domain:  # Has a domain selected
+                            show_row = False
+                    else:
+                        if current_domain != domain_filter:
+                            show_row = False
+                else:
+                    # No domain widget, treat as "No Domain"
+                    if domain_filter != "No Domain":
+                        show_row = False
+            
+            # Show or hide the row
+            self.columns_table.setRowHidden(row, not show_row)
+    
+    def _clear_filters(self):
+        """Clear all filters and show all rows."""
+        self.filter_name.clear()
+        self.filter_datatype.clear()
+        self.filter_nullable.setCurrentIndex(0)  # "All"
+        self.filter_default.clear()
+        self.filter_comment.clear()
+        self.filter_domain.setCurrentIndex(0)  # "All"
+        
+        # Show all rows
+        for row in range(self.columns_table.rowCount()):
+            self.columns_table.setRowHidden(row, False)
     
     def _load_data(self):
         """Load data if in edit mode."""
@@ -244,6 +442,9 @@ class TableDialog(QDialog):
             # Load columns
             self._load_columns()
             
+            # Setup filter domains
+            self._setup_filter_domains()
+            
             # Make name readonly in edit mode
             self.name_edit.setReadOnly(True)
         elif self.selected_owner:
@@ -251,6 +452,9 @@ class TableDialog(QDialog):
             owner_index = self.owner_combo.findText(self.selected_owner)
             if owner_index >= 0:
                 self.owner_combo.setCurrentIndex(owner_index)
+            
+            # Setup filter domains even in add mode
+            self._setup_filter_domains()
     
     def _load_columns(self):
         """Load columns into the table."""
@@ -400,6 +604,9 @@ class TableDialog(QDialog):
         # Setup domain cell for new row
         self._setup_domain_cell(row, "")
         
+        # Refresh filters to show the new row
+        self._apply_filters()
+        
         # Focus on the new row
         self.columns_table.setCurrentCell(row, 0)
         self.columns_table.editItem(self.columns_table.item(row, 0))
@@ -418,6 +625,8 @@ class TableDialog(QDialog):
         current_row = self.columns_table.currentRow()
         if current_row >= 0:
             self.columns_table.removeRow(current_row)
+            # Refresh filters after removing row
+            self._apply_filters()
     
     def _on_item_changed(self, item):
         """Handle item change in columns table for multi-select updates."""
@@ -472,6 +681,8 @@ class TableDialog(QDialog):
         finally:
             # Reset flag
             self._updating_multiselect = False
+            # Refresh filters after changes
+            self._apply_filters()
     
     def _on_nullable_changed(self, row, checked):
         """Handle nullable checkbox change for multi-select updates."""
@@ -527,6 +738,8 @@ class TableDialog(QDialog):
                             self._on_domain_changed(selected_row, domain_name)
             finally:
                 self._updating_multiselect = False
+                # Refresh filters after domain changes
+                self._apply_filters()
     
     def _table_key_press_event(self, event):
         """Handle key press events in the columns table for Excel-like navigation."""
