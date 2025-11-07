@@ -190,6 +190,11 @@ class MainWindow(QMainWindow):
         """Create toolbars."""
         # Main toolbar
         main_toolbar = self.addToolBar("Main")
+        
+        # Set smaller icon size for toolbar
+        from PyQt6.QtCore import QSize
+        main_toolbar.setIconSize(QSize(16, 16))  # Small icons (default is usually 24x24 or 32x32)
+        
         main_toolbar.addAction(self.new_action)
         main_toolbar.addAction(self.open_action)
         main_toolbar.addAction(self.save_action)

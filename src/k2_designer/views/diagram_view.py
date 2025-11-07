@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (QGraphicsView, QGraphicsScene, QGraphicsItem,
                              QGraphicsRectItem, QGraphicsTextItem, QGraphicsLineItem,
                              QGraphicsPolygonItem, QMenu, QWidget, QVBoxLayout, 
                              QHBoxLayout, QPushButton, QApplication)
-from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal
+from PyQt6.QtCore import Qt, QRectF, QPointF, QSize, pyqtSignal
 from PyQt6.QtGui import (QPen, QBrush, QColor, QFont, QPainter, QTransform, 
                          QPalette, QPolygonF)
 import math
@@ -1392,6 +1392,12 @@ class DiagramView(QWidget):
         self.zoom_in_btn = QPushButton("Zoom In")
         self.zoom_out_btn = QPushButton("Zoom Out")
         self.fit_to_view_btn = QPushButton("Fit to View")
+        
+        # Make toolbar buttons smaller
+        button_size = QSize(80, 28)  # Smaller button size
+        self.zoom_in_btn.setMaximumSize(button_size)
+        self.zoom_out_btn.setMaximumSize(button_size)
+        self.fit_to_view_btn.setMaximumSize(button_size)
         
         toolbar_layout.addWidget(self.zoom_in_btn)
         toolbar_layout.addWidget(self.zoom_out_btn)
