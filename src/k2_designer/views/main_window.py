@@ -254,6 +254,47 @@ class MainWindow(QMainWindow):
             # No objects selected
             self.object_browser.tree_widget.clearSelection()
     
+    def _apply_project_theme(self):
+        """Apply the theme from current project settings."""
+        if not self.current_project:
+            return
+
+        theme = self.current_project.settings.get('theme', 'system')
+
+        from PyQt6.QtGui import QPalette, QColor
+
+        if theme == "dark":
+            # Dark mode palette
+            palette = QPalette()
+            palette.setColor(QPalette.ColorRole.Window, QColor(53, 53, 53))
+            palette.setColor(QPalette.ColorRole.WindowText, QColor(255, 255, 255))
+            palette.setColor(QPalette.ColorRole.Base, QColor(35, 35, 35))
+            palette.setColor(QPalette.ColorRole.AlternateBase, QColor(53, 53, 53))
+            palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(25, 25, 25))
+            palette.setColor(QPalette.ColorRole.ToolTipText, QColor(255, 255, 255))
+            palette.setColor(QPalette.ColorRole.Text, QColor(255, 255, 255))
+            palette.setColor(QPalette.ColorRole.Button, QColor(53, 53, 53))
+            palette.setColor(QPalette.ColorRole.ButtonText, QColor(255, 255, 255))
+            palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
+            palette.setColor(QPalette.ColorRole.Link, QColor(42, 130, 218))
+            palette.setColor(QPalette.ColorRole.Highlight, QColor(42, 130, 218))
+            palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+
+            # Disabled colors
+            palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, QColor(127, 127, 127))
+            palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(127, 127, 127))
+            palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(127, 127, 127))
+
+            QApplication.instance().setPalette(palette)
+
+        elif theme == "light":
+            # Light mode palette (reset to default)
+            QApplication.instance().setPalette(self.style().standardPalette())
+
+        else:  # system
+            # Use system default
+            QApplication.instance().setPalette(self.style().standardPalette())
+
     def _new_project(self):
         """Create a new project."""
         if not self._check_unsaved_changes():
@@ -289,6 +330,9 @@ class MainWindow(QMainWindow):
                     self._update_window_title()
                     self.status_bar.showMessage(f"Project opened: {file_path}")
                     
+                    # Apply saved theme
+                    self._apply_project_theme()
+
                     # Open last active diagram if available
                     self._open_last_active_diagram()
                 else:
@@ -392,6 +436,9 @@ class MainWindow(QMainWindow):
                     self.project_changed.emit(project)
                     self._update_window_title()
                     self.status_bar.showMessage(f"✅ Project imported from JSON: {file_path}")
+
+                    # Apply saved theme
+                    self._apply_project_theme()
 
                     # Close all existing diagram tabs
                     self._close_all_diagrams()

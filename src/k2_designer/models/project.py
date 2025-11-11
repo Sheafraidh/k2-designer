@@ -42,7 +42,8 @@ class Project:
         self.settings = {
             'author': '',
             'template_directory': '',
-            'output_directory': ''
+            'output_directory': '',
+            'theme': 'system'  # system, light, or dark
         }
 
     def _initialize_default_stereotypes(self):

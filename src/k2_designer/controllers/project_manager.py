@@ -176,7 +176,8 @@ class ProjectManager:
                 id INTEGER PRIMARY KEY,
                 author TEXT,
                 template_directory TEXT,
-                output_directory TEXT
+                output_directory TEXT,
+                theme TEXT DEFAULT 'system'
             )
         ''')
 
@@ -396,11 +397,12 @@ class ProjectManager:
         # Save project settings
         settings = self.current_project.settings
         cursor.execute('''
-            INSERT INTO project_settings (author, template_directory, output_directory)
-            VALUES (?, ?, ?)
+            INSERT INTO project_settings (author, template_directory, output_directory, theme)
+            VALUES (?, ?, ?, ?)
         ''', (settings.get('author', ''),
               settings.get('template_directory', ''),
-              settings.get('output_directory', '')))
+              settings.get('output_directory', ''),
+              settings.get('theme', 'system')))
 
         # Save domains
         for domain in self.current_project.domains:
@@ -540,13 +542,14 @@ class ProjectManager:
         project = Project(project_row[0], project_row[1], init_default_stereotypes=False)
         
         # Load project settings
-        cursor.execute('SELECT author, template_directory, output_directory FROM project_settings LIMIT 1')
+        cursor.execute('SELECT author, template_directory, output_directory, theme FROM project_settings LIMIT 1')
         settings_row = cursor.fetchone()
         if settings_row:
             project.settings = {
                 'author': settings_row[0] or '',
                 'template_directory': settings_row[1] or '',
-                'output_directory': settings_row[2] or ''
+                'output_directory': settings_row[2] or '',
+                'theme': settings_row[3] or 'system'
             }
 
         # Load domains

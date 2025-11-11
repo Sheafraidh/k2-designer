@@ -1440,15 +1440,19 @@ class DiagramView(QWidget):
         self.fit_to_view_btn = QPushButton("⊡")
         self.fit_to_view_btn.setToolTip("Fit to View")
 
+        self.refresh_btn = QPushButton("⟳")
+        self.refresh_btn.setToolTip("Refresh Diagram - Reload table structures")
+
         # Make toolbar buttons compact and square
         button_size = QSize(32, 32)  # Square, icon-like buttons
-        for btn in [self.zoom_in_btn, self.zoom_out_btn, self.fit_to_view_btn]:
+        for btn in [self.zoom_in_btn, self.zoom_out_btn, self.fit_to_view_btn, self.refresh_btn]:
             btn.setFixedSize(button_size)
             btn.setFont(QFont("Arial", 14))  # Larger font for symbols
 
         toolbar_layout.addWidget(self.zoom_in_btn)
         toolbar_layout.addWidget(self.zoom_out_btn)
         toolbar_layout.addWidget(self.fit_to_view_btn)
+        toolbar_layout.addWidget(self.refresh_btn)
         toolbar_layout.addStretch()
         
         layout.addLayout(toolbar_layout)
@@ -1469,7 +1473,8 @@ class DiagramView(QWidget):
         self.zoom_in_btn.clicked.connect(self._zoom_in)
         self.zoom_out_btn.clicked.connect(self._zoom_out)
         self.fit_to_view_btn.clicked.connect(self._fit_to_view)
-        
+        self.refresh_btn.clicked.connect(self._refresh_diagram)
+
         # Connect scene signals
         self.scene.table_selected.connect(self.selection_changed.emit)
         self.scene.tables_selected.connect(self.multiple_selection_changed.emit)
@@ -1519,6 +1524,10 @@ class DiagramView(QWidget):
         self.graphics_view.fitInView(self.scene.itemsBoundingRect(), 
                                    Qt.AspectRatioMode.KeepAspectRatio)
     
+    def _refresh_diagram(self):
+        """Refresh diagram button handler - reload table structures."""
+        self.refresh_diagram()
+
     def refresh_diagram(self):
         """Refresh the entire diagram."""
         if hasattr(self, 'scene') and self.scene:

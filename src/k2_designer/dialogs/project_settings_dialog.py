@@ -4,9 +4,9 @@ Dialog for managing project settings.
 
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
                              QLineEdit, QPushButton, QFileDialog, QLabel,
-                             QGroupBox, QDialogButtonBox)
+                             QGroupBox, QDialogButtonBox, QComboBox)
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QPalette, QColor
 import os
 
 
@@ -45,6 +45,26 @@ class ProjectSettingsDialog(QDialog):
 
         general_group.setLayout(general_layout)
         layout.addWidget(general_group)
+
+        # Appearance Settings Group
+        appearance_group = QGroupBox("Appearance")
+        appearance_layout = QFormLayout()
+
+        # Theme Mode
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItem("System Default", "system")
+        self.theme_combo.addItem("Light Mode", "light")
+        self.theme_combo.addItem("Dark Mode", "dark")
+        self.theme_combo.currentIndexChanged.connect(self._on_theme_changed)
+        appearance_layout.addRow("Theme:", self.theme_combo)
+
+        # Theme help text
+        theme_help = QLabel("🎨 Changes take effect immediately")
+        theme_help.setStyleSheet("color: gray; font-size: 10px;")
+        appearance_layout.addRow("", theme_help)
+
+        appearance_group.setLayout(appearance_layout)
+        layout.addWidget(appearance_group)
 
         # Paths Settings Group
         paths_group = QGroupBox("Paths")
@@ -122,6 +142,12 @@ class ProjectSettingsDialog(QDialog):
         self.template_dir_edit.setText(settings.get('template_directory', ''))
         self.output_dir_edit.setText(settings.get('output_directory', ''))
 
+        # Load theme setting
+        theme = settings.get('theme', 'system')
+        index = self.theme_combo.findData(theme)
+        if index >= 0:
+            self.theme_combo.setCurrentIndex(index)
+
     def _browse_template_dir(self):
         """Browse for template directory."""
         current_dir = self.template_dir_edit.text() or os.path.expanduser("~")
@@ -150,16 +176,64 @@ class ProjectSettingsDialog(QDialog):
         if directory:
             self.output_dir_edit.setText(directory)
 
+    def _on_theme_changed(self, index):
+        """Handle theme change - apply immediately."""
+        theme = self.theme_combo.currentData()
+        self._apply_theme(theme)
+
+    def _apply_theme(self, theme):
+        """Apply the selected theme to the application."""
+        from PyQt6.QtWidgets import QApplication
+
+        app = QApplication.instance()
+        if not app:
+            return
+
+        if theme == "dark":
+            # Dark mode palette
+            palette = QPalette()
+            palette.setColor(QPalette.ColorRole.Window, QColor(53, 53, 53))
+            palette.setColor(QPalette.ColorRole.WindowText, QColor(255, 255, 255))
+            palette.setColor(QPalette.ColorRole.Base, QColor(35, 35, 35))
+            palette.setColor(QPalette.ColorRole.AlternateBase, QColor(53, 53, 53))
+            palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(25, 25, 25))
+            palette.setColor(QPalette.ColorRole.ToolTipText, QColor(255, 255, 255))
+            palette.setColor(QPalette.ColorRole.Text, QColor(255, 255, 255))
+            palette.setColor(QPalette.ColorRole.Button, QColor(53, 53, 53))
+            palette.setColor(QPalette.ColorRole.ButtonText, QColor(255, 255, 255))
+            palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
+            palette.setColor(QPalette.ColorRole.Link, QColor(42, 130, 218))
+            palette.setColor(QPalette.ColorRole.Highlight, QColor(42, 130, 218))
+            palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+
+            # Disabled colors
+            palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, QColor(127, 127, 127))
+            palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(127, 127, 127))
+            palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(127, 127, 127))
+
+            app.setPalette(palette)
+
+        elif theme == "light":
+            # Light mode palette (reset to default)
+            app.setPalette(app.style().standardPalette())
+
+        else:  # system
+            # Use system default
+            app.setPalette(app.style().standardPalette())
+
     def get_settings(self):
         """Get the settings from the dialog."""
         return {
             'author': self.author_edit.text().strip(),
             'template_directory': self.template_dir_edit.text().strip(),
-            'output_directory': self.output_dir_edit.text().strip()
+            'output_directory': self.output_dir_edit.text().strip(),
+            'theme': self.theme_combo.currentData()
         }
 
     def apply_settings(self):
         """Apply the settings to the project."""
         if self.project:
             self.project.settings = self.get_settings()
+            # Apply theme immediately
+            self._apply_theme(self.project.settings['theme'])
 
