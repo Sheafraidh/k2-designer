@@ -70,6 +70,12 @@ class ProjectManager:
             conn = sqlite3.connect(file_path)
             cursor = conn.cursor()
             
+            # Migrate database schema if needed
+            self._migrate_database_schema(cursor)
+            
+            # Commit any migration changes
+            conn.commit()
+            
             # Load project data
             project = self._load_project_data(cursor)
             
@@ -153,6 +159,7 @@ class ProjectManager:
                 default_value TEXT,
                 comment TEXT,
                 domain TEXT,
+                stereotype TEXT,
                 column_order INTEGER,
                 FOREIGN KEY (table_id) REFERENCES tables(id) ON DELETE CASCADE
             )
@@ -261,6 +268,18 @@ class ProjectManager:
                 FOREIGN KEY (diagram_name) REFERENCES diagrams(name) ON DELETE CASCADE
             )
         ''')
+        
+        # Stereotypes
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS stereotypes (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                stereotype_type TEXT NOT NULL,
+                description TEXT,
+                background_color TEXT NOT NULL,
+                UNIQUE(name, stereotype_type)
+            )
+        ''')
     
     def _migrate_database_schema(self, cursor: sqlite3.Cursor):
         """Migrate existing database schema to support new features."""
@@ -274,6 +293,11 @@ class ProjectManager:
             if 'domain' not in column_names:
                 cursor.execute('ALTER TABLE columns ADD COLUMN domain TEXT')
                 print("Added domain column to existing database")
+                
+            # Add stereotype column if it doesn't exist
+            if 'stereotype' not in column_names:
+                cursor.execute('ALTER TABLE columns ADD COLUMN stereotype TEXT')
+                print("Added stereotype column to existing database")
         except sqlite3.OperationalError:
             # Table doesn't exist yet, will be created by schema creation
             pass
@@ -281,9 +305,9 @@ class ProjectManager:
     def _clear_database(self, cursor: sqlite3.Cursor):
         """Clear all data from the database."""
         tables = [
-            'diagram_items', 'diagrams', 'foreign_keys', 'table_partitioning', 'table_indexes', 
+            'diagram_connections', 'diagram_items', 'diagrams', 'foreign_keys', 'table_partitioning', 'table_indexes', 
             'table_keys', 'columns', 'tables', 'sequences', 
-            'owners', 'domains', 'project_info'
+            'owners', 'domains', 'stereotypes', 'project_info'
         ]
         
         for table in tables:
@@ -313,13 +337,20 @@ class ProjectManager:
             ''', (owner.name, owner.default_tablespace, owner.temp_tablespace,
                   owner.default_index_tablespace, owner.editionable, owner.comment))
         
+        # Save stereotypes
+        for stereotype in self.current_project.stereotypes:
+            cursor.execute('''
+                INSERT INTO stereotypes (name, stereotype_type, description, background_color)
+                VALUES (?, ?, ?, ?)
+            ''', (stereotype.name, stereotype.stereotype_type.value, stereotype.description, stereotype.background_color))
+        
         # Save tables
         for table in self.current_project.tables:
             cursor.execute('''
                 INSERT INTO tables (name, owner, tablespace, stereotype, color,
                                   domain, editionable, comment)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (table.name, table.owner, table.tablespace, table.stereotype.value,
+            ''', (table.name, table.owner, table.tablespace, table.stereotype,
                   table.color, table.domain, table.editionable, table.comment))
             
             table_id = cursor.lastrowid
@@ -328,10 +359,10 @@ class ProjectManager:
             for i, column in enumerate(table.columns):
                 cursor.execute('''
                     INSERT INTO columns (table_id, name, data_type, nullable,
-                                       default_value, comment, domain, column_order)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                       default_value, comment, domain, stereotype, column_order)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (table_id, column.name, column.data_type, column.nullable,
-                      column.default, column.comment, column.domain, i))
+                      column.default, column.comment, column.domain, column.stereotype, i))
             
             # Save keys
             for key in table.keys:
@@ -425,7 +456,7 @@ class ProjectManager:
         if not project_row:
             return None
         
-        project = Project(project_row[0], project_row[1])
+        project = Project(project_row[0], project_row[1], init_default_stereotypes=False)
         
         # Load domains
         cursor.execute('SELECT name, data_type, comment FROM domains')
@@ -445,6 +476,21 @@ class ProjectManager:
             owner = Owner(row[0], row[1], row[2], row[3], bool(row[4]), row[5])
             project.add_owner(owner)
         
+        # Load stereotypes
+        cursor.execute('''
+            SELECT name, stereotype_type, description, background_color
+            FROM stereotypes
+        ''')
+        for row in cursor.fetchall():
+            from ..models.base import Stereotype, StereotypeType
+            stereotype = Stereotype(
+                name=row[0],
+                stereotype_type=StereotypeType(row[1]),
+                description=row[2],
+                background_color=row[3]
+            )
+            project.add_stereotype(stereotype)
+        
         # Load tables
         cursor.execute('''
             SELECT id, name, owner, tablespace, stereotype, color,
@@ -455,12 +501,12 @@ class ProjectManager:
         table_id_map = {}
         
         for row in cursor.fetchall():
-            from ..models import Table, Stereotype
+            from ..models import Table
             table = Table(
                 name=row[1],
                 owner=row[2],
                 tablespace=row[3],
-                stereotype=Stereotype(row[4]),
+                stereotype=row[4],  # Now a string, not a Stereotype object
                 color=row[5],
                 domain=row[6],
                 editionable=bool(row[7]),
@@ -473,7 +519,7 @@ class ProjectManager:
         # Load columns for each table
         for table_id, table in table_id_map.items():
             cursor.execute('''
-                SELECT name, data_type, nullable, default_value, comment, domain
+                SELECT name, data_type, nullable, default_value, comment, domain, stereotype
                 FROM columns
                 WHERE table_id = ?
                 ORDER BY column_order
@@ -487,7 +533,8 @@ class ProjectManager:
                     nullable=bool(col_row[2]),
                     default=col_row[3],
                     comment=col_row[4],
-                    domain=col_row[5]
+                    domain=col_row[5],
+                    stereotype=col_row[6]
                 )
                 table.add_column(column)
             

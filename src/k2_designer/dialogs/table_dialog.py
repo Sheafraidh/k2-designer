@@ -10,7 +10,8 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 
-from ..models import Table, Column, Stereotype
+from ..models import Table, Column
+from ..models.base import Stereotype, StereotypeType
 
 
 class MultiSelectDelegate(QStyledItemDelegate):
@@ -139,7 +140,7 @@ class TableDialog(QDialog):
         form_layout.addRow("Tablespace:", self.tablespace_edit)
         
         self.stereotype_combo = QComboBox()
-        self.stereotype_combo.addItems([s.value for s in Stereotype])
+        self._populate_stereotypes()
         form_layout.addRow("Stereotype:", self.stereotype_combo)
         
         # Color picker setup
@@ -217,6 +218,10 @@ class TableDialog(QDialog):
         domain_label.setFixedWidth(120)
         domain_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
+        stereotype_label = QLabel("Stereotype")
+        stereotype_label.setFixedWidth(120)
+        stereotype_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
         clear_label = QLabel("")  # Empty space for clear button
         clear_label.setFixedWidth(100)
         
@@ -226,6 +231,7 @@ class TableDialog(QDialog):
         labels_layout.addWidget(default_label)
         labels_layout.addWidget(comment_label)
         labels_layout.addWidget(domain_label)
+        labels_layout.addWidget(stereotype_label)
         labels_layout.addWidget(clear_label)
         
         # Create filter inputs row with matching widths
@@ -263,6 +269,13 @@ class TableDialog(QDialog):
         self.filter_domain.currentTextChanged.connect(self._apply_filters)
         self.filter_domain.lineEdit().textChanged.connect(self._apply_filters)
         
+        self.filter_stereotype = QComboBox()
+        self.filter_stereotype.setEditable(True)
+        self.filter_stereotype.setFixedWidth(120)
+        self.filter_stereotype.lineEdit().setPlaceholderText("Filter Stereotype...")
+        self.filter_stereotype.currentTextChanged.connect(self._apply_filters)
+        self.filter_stereotype.lineEdit().textChanged.connect(self._apply_filters)
+        
         # Clear filters button
         self.clear_filters_btn = QPushButton("Clear Filters")
         self.clear_filters_btn.setFixedWidth(100)
@@ -275,6 +288,7 @@ class TableDialog(QDialog):
         inputs_layout.addWidget(self.filter_default)
         inputs_layout.addWidget(self.filter_comment)
         inputs_layout.addWidget(self.filter_domain)
+        inputs_layout.addWidget(self.filter_stereotype)
         inputs_layout.addWidget(self.clear_filters_btn)
         
         # Add both layouts to filter group
@@ -286,9 +300,9 @@ class TableDialog(QDialog):
         # Columns table
         self.columns_table = MultiSelectTableWidget()
         self.columns_table.set_parent_dialog(self)
-        self.columns_table.setColumnCount(6)
+        self.columns_table.setColumnCount(7)
         self.columns_table.setHorizontalHeaderLabels([
-            "Name", "Data Type", "Nullable", "Default", "Comment", "Domain"
+            "Name", "Data Type", "Nullable", "Default", "Comment", "Domain", "Stereotype"
         ])
         
         # Enable extended selection (standard Shift+click range selection, Ctrl+click toggle)
@@ -306,6 +320,7 @@ class TableDialog(QDialog):
         self.columns_table.setColumnWidth(3, 100)  # Default
         self.columns_table.setColumnWidth(4, 150)  # Comment
         self.columns_table.setColumnWidth(5, 120)  # Domain
+        self.columns_table.setColumnWidth(6, 120)  # Stereotype
         
         # Set resize modes for better user experience
         from PyQt6.QtWidgets import QHeaderView
@@ -344,6 +359,18 @@ class TableDialog(QDialog):
             for domain in self.project.domains:
                 self.filter_domain.addItem(domain.name)
     
+    def _setup_filter_stereotypes(self):
+        """Setup the stereotype filter combobox with available stereotypes."""
+        self.filter_stereotype.clear()
+        self.filter_stereotype.addItem("All")
+        self.filter_stereotype.addItem("No Stereotype")
+        
+        # Add available column stereotypes
+        if self.project and hasattr(self.project, 'stereotypes'):
+            for stereotype in self.project.stereotypes:
+                if stereotype.stereotype_type.value == 'column':
+                    self.filter_stereotype.addItem(stereotype.name)
+    
     def _apply_filters(self):
         """Apply filters to show/hide rows based on filter criteria."""
         name_filter = self.filter_name.text().lower()
@@ -352,6 +379,7 @@ class TableDialog(QDialog):
         default_filter = self.filter_default.text().lower()
         comment_filter = self.filter_comment.text().lower()
         domain_filter = self.filter_domain.currentText()
+        stereotype_filter = self.filter_stereotype.currentText()
         
         for row in range(self.columns_table.rowCount()):
             show_row = True
@@ -406,6 +434,22 @@ class TableDialog(QDialog):
                     if domain_filter != "No Domain":
                         show_row = False
             
+            # Check stereotype filter
+            if show_row and stereotype_filter not in ["All", ""]:
+                stereotype_combo = self.columns_table.cellWidget(row, 6)
+                if stereotype_combo and isinstance(stereotype_combo, QComboBox):
+                    current_stereotype = stereotype_combo.currentText()
+                    if stereotype_filter == "No Stereotype":
+                        if current_stereotype:  # Has a stereotype selected
+                            show_row = False
+                    else:
+                        if current_stereotype != stereotype_filter:
+                            show_row = False
+                else:
+                    # No stereotype widget, treat as "No Stereotype"
+                    if stereotype_filter != "No Stereotype":
+                        show_row = False
+            
             # Show or hide the row
             self.columns_table.setRowHidden(row, not show_row)
     
@@ -417,10 +461,22 @@ class TableDialog(QDialog):
         self.filter_default.clear()
         self.filter_comment.clear()
         self.filter_domain.setCurrentIndex(0)  # "All"
+        self.filter_stereotype.setCurrentIndex(0)  # "All"
         
         # Show all rows
         for row in range(self.columns_table.rowCount()):
             self.columns_table.setRowHidden(row, False)
+    
+    def _populate_stereotypes(self):
+        """Populate stereotype combo with project stereotypes."""
+        self.stereotype_combo.clear()
+        self.stereotype_combo.addItem("")  # Empty option
+        
+        if self.project and hasattr(self.project, 'stereotypes'):
+            table_stereotypes = [s for s in self.project.stereotypes 
+                               if s.stereotype_type == StereotypeType.TABLE]
+            for stereotype in table_stereotypes:
+                self.stereotype_combo.addItem(stereotype.name)
     
     def _load_data(self):
         """Load data if in edit mode."""
@@ -433,7 +489,7 @@ class TableDialog(QDialog):
                 self.owner_combo.setCurrentIndex(owner_index)
             
             self.tablespace_edit.setText(self.table.tablespace or "")
-            self.stereotype_combo.setCurrentText(self.table.stereotype.value)
+            self.stereotype_combo.setCurrentText(self.table.stereotype or "")
             self._set_color(self.table.color or "#FFFFFF")
             self._color_manually_set = bool(self.table.color)  # Mark as manually set if table has a specific color
             self.editionable_check.setChecked(self.table.editionable)
@@ -445,6 +501,9 @@ class TableDialog(QDialog):
             # Setup filter domains
             self._setup_filter_domains()
             
+            # Setup filter stereotypes
+            self._setup_filter_stereotypes()
+            
             # Make name readonly in edit mode
             self.name_edit.setReadOnly(True)
         elif self.selected_owner:
@@ -455,6 +514,9 @@ class TableDialog(QDialog):
             
             # Setup filter domains even in add mode
             self._setup_filter_domains()
+            
+            # Setup filter stereotypes even in add mode
+            self._setup_filter_stereotypes()
     
     def _load_columns(self):
         """Load columns into the table."""
@@ -478,6 +540,9 @@ class TableDialog(QDialog):
             
             # Domain column with combobox
             self._setup_domain_cell(row, column.domain or "")
+            
+            # Stereotype column with combobox
+            self._setup_stereotype_cell(row, column.stereotype or "")
     
     def _setup_nullable_cell(self, row, nullable=True):
         """Setup nullable checkbox for a specific cell."""
@@ -535,6 +600,34 @@ class TableDialog(QDialog):
         # Update data type editability based on current domain
         self._update_data_type_editability(row, selected_domain)
     
+    def _setup_stereotype_cell(self, row, selected_stereotype=""):
+        """Setup stereotype combobox for a specific cell."""
+        stereotype_combo = QComboBox()
+        stereotype_combo.setEditable(False)
+        
+        # Add empty option
+        stereotype_combo.addItem("", "")  # Text, data
+        
+        # Add available column stereotypes
+        if self.project and hasattr(self.project, 'stereotypes'):
+            for stereotype in self.project.stereotypes:
+                if stereotype.stereotype_type.value == 'column':
+                    stereotype_combo.addItem(stereotype.name, stereotype.name)
+        
+        # Set current selection
+        if selected_stereotype:
+            index = stereotype_combo.findData(selected_stereotype)
+            if index >= 0:
+                stereotype_combo.setCurrentIndex(index)
+        
+        # Connect signal for stereotype change (use multi-select handler)
+        stereotype_combo.currentTextChanged.connect(
+            lambda text, r=row: self._on_stereotype_changed_multi(r, text)
+        )
+        
+        # Set the combobox as the cell widget
+        self.columns_table.setCellWidget(row, 6, stereotype_combo)
+    
     def _on_domain_changed(self, row, domain_name):
         """Handle domain selection change for a column."""
         if not domain_name:  # Empty domain selected
@@ -567,6 +660,12 @@ class TableDialog(QDialog):
                 data_type_item.setFlags(data_type_item.flags() | Qt.ItemFlag.ItemIsEditable)
                 # Reset to default text color (matches other columns automatically)
                 data_type_item.setData(Qt.ItemDataRole.ForegroundRole, None)
+    
+    def _on_stereotype_changed(self, row, stereotype_name):
+        """Handle stereotype selection change for a single row."""
+        # Stereotype doesn't affect other columns, just store the selection
+        # The value will be read when saving the table
+        pass
     
     def _connect_signals(self):
         """Connect signals."""
@@ -603,6 +702,9 @@ class TableDialog(QDialog):
         
         # Setup domain cell for new row
         self._setup_domain_cell(row, "")
+        
+        # Setup stereotype cell for new row
+        self._setup_stereotype_cell(row, "")
         
         # Refresh filters to show the new row
         self._apply_filters()
@@ -741,6 +843,40 @@ class TableDialog(QDialog):
                 # Refresh filters after domain changes
                 self._apply_filters()
     
+    def _on_stereotype_changed_multi(self, row, stereotype_name):
+        """Handle stereotype selection change for multi-select updates."""
+        # Skip if change was triggered programmatically
+        if hasattr(self, '_updating_multiselect') and self._updating_multiselect:
+            return
+            
+        # Get current selection for stereotype changes
+        selected_rows = set()
+        for selected_item in self.columns_table.selectedItems():
+            selected_rows.add(selected_item.row())
+        
+        # Apply stereotype change to the current row first
+        self._on_stereotype_changed(row, stereotype_name)
+        
+        # Only apply to multiple rows if more than one is selected and current row is in selection
+        if len(selected_rows) > 1 and row in selected_rows:
+            self._updating_multiselect = True
+            try:
+                for selected_row in selected_rows:
+                    if selected_row != row:  # Don't update the row that triggered the change
+                        stereotype_combo = self.columns_table.cellWidget(selected_row, 6)
+                        if stereotype_combo:
+                            # Find and set the stereotype
+                            index = stereotype_combo.findData(stereotype_name)
+                            if index >= 0:
+                                stereotype_combo.setCurrentIndex(index)
+                            
+                            # Apply the stereotype change logic to this row too
+                            self._on_stereotype_changed(selected_row, stereotype_name)
+            finally:
+                self._updating_multiselect = False
+                # Refresh filters after stereotype changes
+                self._apply_filters()
+    
     def _table_key_press_event(self, event):
         """Handle key press events in the columns table for Excel-like navigation."""
         from PyQt6.QtCore import Qt
@@ -834,6 +970,10 @@ class TableDialog(QDialog):
                 domain_combo = self.columns_table.cellWidget(new_row, 5)
                 if domain_combo:
                     domain_combo.setFocus()
+            elif new_col == 6:  # Stereotype column
+                stereotype_combo = self.columns_table.cellWidget(new_row, 6)
+                if stereotype_combo:
+                    stereotype_combo.setFocus()
             
             return  # Don't call the default handler
         
@@ -865,6 +1005,10 @@ class TableDialog(QDialog):
                 domain_combo = self.columns_table.cellWidget(new_row, 5)
                 if domain_combo:
                     domain_combo.setFocus()
+            elif new_col == 6:  # Stereotype column
+                stereotype_combo = self.columns_table.cellWidget(new_row, 6)
+                if stereotype_combo:
+                    stereotype_combo.setFocus()
             
             return  # Don't call the default handler
         
@@ -890,18 +1034,27 @@ class TableDialog(QDialog):
     
     def _on_stereotype_changed(self):
         """Handle stereotype change to update default color."""
+        # Auto-update color based on stereotype if color hasn't been manually set
         if not self.is_edit_mode or not hasattr(self, '_color_manually_set'):
             # Only auto-update color if not in edit mode or color hasn't been manually set
-            stereotype_text = self.stereotype_combo.currentText()
-            stereotype = Stereotype(stereotype_text)
+            stereotype_name = self.stereotype_combo.currentText()
             
-            # Get default color for stereotype (similar to Table model logic)
-            color_map = {
-                Stereotype.BUSINESS: "#081B2A",  # Light blue
-                Stereotype.TECHNICAL: "#360A3C"  # Light purple
-            }
-            default_color = color_map.get(stereotype, "#464646")
-            self._set_color(default_color)
+            if stereotype_name and self.project and hasattr(self.project, 'stereotypes'):
+                # Find the stereotype in project stereotypes
+                stereotype = None
+                for s in self.project.stereotypes:
+                    if s.name == stereotype_name and s.stereotype_type == StereotypeType.TABLE:
+                        stereotype = s
+                        break
+                
+                if stereotype:
+                    self._set_color(stereotype.background_color)
+                else:
+                    # Default color if stereotype not found
+                    self._set_color("#464646")
+            else:
+                # Default color for empty stereotype
+                self._set_color("#464646")
     
     def _on_ok(self):
         """Handle OK button click."""
@@ -911,7 +1064,7 @@ class TableDialog(QDialog):
         name = self.name_edit.text().strip()
         owner = self.owner_combo.currentText()
         tablespace = self.tablespace_edit.text().strip() or None
-        stereotype = Stereotype(self.stereotype_combo.currentText())
+        stereotype = self.stereotype_combo.currentText() or None
         color = self.current_color if self.current_color != "#FFFFFF" else None
         editionable = self.editionable_check.isChecked()
         comment = self.comment_edit.toPlainText().strip() or None
@@ -920,7 +1073,7 @@ class TableDialog(QDialog):
             # Update existing table
             self.table.tablespace = tablespace
             self.table.stereotype = stereotype
-            self.table.color = color or self.table._get_default_color(stereotype)
+            self.table.color = color
             self.table.editionable = editionable
             self.table.comment = comment
             
@@ -970,6 +1123,12 @@ class TableDialog(QDialog):
             if domain_combo and isinstance(domain_combo, QComboBox):
                 domain = domain_combo.currentData() or None
             
+            # Get stereotype from combobox widget
+            stereotype_combo = self.columns_table.cellWidget(row, 6)
+            stereotype = None
+            if stereotype_combo and isinstance(stereotype_combo, QComboBox):
+                stereotype = stereotype_combo.currentData() or None
+            
             if name_item and data_type_item:
                 name = name_item.text().strip()
                 data_type = data_type_item.text().strip()
@@ -984,7 +1143,8 @@ class TableDialog(QDialog):
                         nullable=nullable,
                         default=default or None,
                         comment=comment or None,
-                        domain=domain
+                        domain=domain,
+                        stereotype=stereotype
                     )
                     self.table.add_column(column)
     

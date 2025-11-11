@@ -7,8 +7,50 @@ from typing import Optional, List
 from abc import ABC, abstractmethod
 
 
-class Stereotype(Enum):
-    """Table stereotypes."""
+class StereotypeType(Enum):
+    """Stereotype types."""
+    TABLE = "table"
+    COLUMN = "column"
+
+
+class Stereotype:
+    """Custom stereotype definition."""
+    
+    def __init__(self, name: str, stereotype_type: StereotypeType, 
+                 description: Optional[str] = None, background_color: Optional[str] = None):
+        self.name = name
+        self.stereotype_type = stereotype_type
+        self.description = description
+        self.background_color = background_color or self._get_default_color()
+    
+    def _get_default_color(self) -> str:
+        """Get default color for stereotype type."""
+        if self.stereotype_type == StereotypeType.TABLE:
+            return "#4C4C4C"
+        else:  # COLUMN
+            return "#808080"
+    
+    def to_dict(self) -> dict:
+        return {
+            'name': self.name,
+            'stereotype_type': self.stereotype_type.value,
+            'description': self.description,
+            'background_color': self.background_color
+        }
+    
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            name=data['name'],
+            stereotype_type=StereotypeType(data['stereotype_type']),
+            description=data.get('description'),
+            background_color=data.get('background_color')
+        )
+
+
+# Legacy enum for backward compatibility - will be replaced by custom stereotypes
+class LegacyStereotype(Enum):
+    """Legacy table stereotypes."""
     BUSINESS = "business"
     TECHNICAL = "technical"
 
@@ -43,13 +85,14 @@ class Column:
     
     def __init__(self, name: str, data_type: str, nullable: bool = True, 
                  comment: Optional[str] = None, default: Optional[str] = None,
-                 domain: Optional[str] = None):
+                 domain: Optional[str] = None, stereotype: Optional[str] = None):
         self.name = name
         self.data_type = data_type
         self.nullable = nullable
         self.comment = comment
         self.default = default
         self.domain = domain
+        self.stereotype = stereotype  # Reference to stereotype name
     
     def to_dict(self) -> dict:
         return {
@@ -58,7 +101,8 @@ class Column:
             'nullable': self.nullable,
             'comment': self.comment,
             'default': self.default,
-            'domain': self.domain
+            'domain': self.domain,
+            'stereotype': self.stereotype
         }
     
     @classmethod
@@ -69,7 +113,8 @@ class Column:
             nullable=data.get('nullable', True),
             comment=data.get('comment'),
             default=data.get('default'),
-            domain=data.get('domain')
+            domain=data.get('domain'),
+            stereotype=data.get('stereotype')
         )
 
 

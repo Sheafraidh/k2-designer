@@ -9,7 +9,8 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QFormLayout, QLabel,
                              QHBoxLayout)
 from PyQt6.QtCore import Qt, pyqtSignal
 
-from ..models import Owner, Table, Sequence, Domain, Column, Key, Index, Stereotype
+from ..models import Owner, Table, Sequence, Domain, Column, Key, Index
+from ..models.base import Stereotype, StereotypeType
 
 
 class PropertiesPanel(QWidget):
@@ -21,6 +22,7 @@ class PropertiesPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.current_object = None
+        self.current_project = None
         self._setup_ui()
     
     def _setup_ui(self):
@@ -138,7 +140,8 @@ class PropertiesPanel(QWidget):
         # Find common stereotype
         stereotypes = set(table.stereotype for table in tables)
         if len(stereotypes) == 1:
-            stereotype_label = QLabel(list(stereotypes)[0].value)
+            stereotype_name = list(stereotypes)[0] or "None"
+            stereotype_label = QLabel(stereotype_name)
             common_layout.addRow("Stereotype:", stereotype_label)
         else:
             common_layout.addRow("Stereotype:", QLabel(f"<i>Mixed ({len(stereotypes)} different)</i>"))
@@ -281,6 +284,10 @@ class PropertiesPanel(QWidget):
             if child.widget():
                 child.widget().deleteLater()
     
+    def set_project(self, project):
+        """Set the current project for stereotype access."""
+        self.current_project = project
+    
     def set_object(self, obj):
         """Set the object(s) to display properties for.
         
@@ -379,8 +386,17 @@ class PropertiesPanel(QWidget):
         basic_layout.addRow("Tablespace:", tablespace_edit)
         
         stereotype_combo = QComboBox()
-        stereotype_combo.addItems([s.value for s in Stereotype])
-        stereotype_combo.setCurrentText(table.stereotype.value)
+        stereotype_combo.addItem("")  # Empty option
+        
+        # Add project stereotypes if available
+        if self.current_project and hasattr(self.current_project, 'stereotypes'):
+            table_stereotypes = [s for s in self.current_project.stereotypes 
+                               if s.stereotype_type == StereotypeType.TABLE]
+            for stereotype in table_stereotypes:
+                stereotype_combo.addItem(stereotype.name)
+        
+        # Set current value
+        stereotype_combo.setCurrentText(table.stereotype or "")
         basic_layout.addRow("Stereotype:", stereotype_combo)
         
         color_edit = QLineEdit(table.color or "")

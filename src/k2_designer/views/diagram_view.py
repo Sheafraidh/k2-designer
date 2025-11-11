@@ -17,9 +17,10 @@ from ..models import Project, Table, Column, Sequence, Diagram
 class TableGraphicsItem(QGraphicsRectItem):
     """Graphics item representing a database table."""
     
-    def __init__(self, table: Table, parent=None):
+    def __init__(self, table: Table, project=None, parent=None):
         super().__init__(parent)
         self.table = table
+        self.project = project
         self._setup_appearance()
         self._create_content()
     
@@ -34,6 +35,15 @@ class TableGraphicsItem(QGraphicsRectItem):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
+    
+    def _get_project(self):
+        """Get the project reference, either from constructor or scene."""
+        if self.project:
+            return self.project
+        scene = self.scene()
+        if hasattr(scene, 'project'):
+            return scene.project
+        return None
     
     def _update_selection_appearance(self):
         """Update the visual appearance based on selection state."""
@@ -99,6 +109,24 @@ class TableGraphicsItem(QGraphicsRectItem):
                 child.setParentItem(None)
         
         y_offset = 5
+        project = self._get_project()
+        
+        # Table stereotype (if any)
+        if self.table.stereotype and project:
+            stereotype_text = QGraphicsTextItem(f"<<{self.table.stereotype}>>", self)
+            stereotype_font = QFont()
+            stereotype_font.setItalic(True)
+            stereotype_font.setPointSize(8)
+            stereotype_text.setFont(stereotype_font)
+            
+            # Set text color based on theme (slightly dimmed)
+            if self._is_dark_mode():
+                stereotype_text.setDefaultTextColor(QColor("#cccccc"))  # Light gray in dark mode
+            else:
+                stereotype_text.setDefaultTextColor(QColor("#666666"))  # Dark gray in light mode
+                
+            stereotype_text.setPos(5, y_offset)
+            y_offset += stereotype_text.boundingRect().height() + 2
         
         # Table title
         title_text = QGraphicsTextItem(self.table.name, self)
@@ -142,6 +170,10 @@ class TableGraphicsItem(QGraphicsRectItem):
             column_text = f"{column.name}: {column.data_type}"
             if not column.nullable:
                 column_text += " NOT NULL"
+            
+            # Add column stereotype if it exists
+            if hasattr(column, 'stereotype') and column.stereotype and project:
+                column_text += f" <<{column.stereotype}>>"
             
             column_item = QGraphicsTextItem(column_text, self)
             column_item.setFont(column_font)
@@ -716,7 +748,7 @@ class DiagramScene(QGraphicsScene):
                         # Find the table in the project
                         for table in self.project.tables:
                             if f"{table.owner}.{table.name}" == item.object_name:
-                                table_item = TableGraphicsItem(table)
+                                table_item = TableGraphicsItem(table, self.project)
                                 table_item.setPos(item.x, item.y)
                                 self.addItem(table_item)
                                 self.table_items[item.object_name] = table_item
@@ -757,7 +789,7 @@ class DiagramScene(QGraphicsScene):
                 # Find the table in the project
                 for table in self.project.tables:
                     if f"{table.owner}.{table.name}" == item.object_name:
-                        table_item = TableGraphicsItem(table)
+                        table_item = TableGraphicsItem(table, self.project)
                         table_item.setPos(item.x, item.y)
                         self.addItem(table_item)
                         self.table_items[item.object_name] = table_item
@@ -820,7 +852,7 @@ class DiagramScene(QGraphicsScene):
             return
         
         # Create table item
-        table_item = TableGraphicsItem(table)
+        table_item = TableGraphicsItem(table, self.project)
         table_item.setPos(position)
         self.addItem(table_item)
         
@@ -919,7 +951,7 @@ class DiagramScene(QGraphicsScene):
         max_height = 0
         
         for table in self.project.tables:
-            table_item = TableGraphicsItem(table)
+            table_item = TableGraphicsItem(table, self.project)
             table_item.setPos(x_offset, y_offset)
             self.addItem(table_item)
             
@@ -1385,20 +1417,35 @@ class DiagramView(QWidget):
     def _setup_ui(self):
         """Setup the UI components."""
         layout = QVBoxLayout(self)
-        
+        layout.setContentsMargins(2, 2, 2, 2)  # Reduce margins
+        layout.setSpacing(2)  # Reduce spacing between toolbar and view
+
         # Toolbar
         toolbar_layout = QHBoxLayout()
-        
-        self.zoom_in_btn = QPushButton("Zoom In")
-        self.zoom_out_btn = QPushButton("Zoom Out")
-        self.fit_to_view_btn = QPushButton("Fit to View")
-        
-        # Make toolbar buttons smaller
-        button_size = QSize(80, 28)  # Smaller button size
-        self.zoom_in_btn.setMaximumSize(button_size)
-        self.zoom_out_btn.setMaximumSize(button_size)
-        self.fit_to_view_btn.setMaximumSize(button_size)
-        
+        toolbar_layout.setContentsMargins(0, 0, 0, 0)  # Remove toolbar margins
+        toolbar_layout.setSpacing(2)  # Minimal spacing between buttons
+
+        # Get standard icons from Qt
+        style = QApplication.style()
+        zoom_in_icon = style.standardIcon(style.StandardPixmap.SP_ArrowUp)  # Will use text icon instead
+        zoom_out_icon = style.standardIcon(style.StandardPixmap.SP_ArrowDown)  # Will use text icon instead
+
+        # Create buttons with icons and minimal text
+        self.zoom_in_btn = QPushButton("+")
+        self.zoom_in_btn.setToolTip("Zoom In")
+
+        self.zoom_out_btn = QPushButton("−")
+        self.zoom_out_btn.setToolTip("Zoom Out")
+
+        self.fit_to_view_btn = QPushButton("⊡")
+        self.fit_to_view_btn.setToolTip("Fit to View")
+
+        # Make toolbar buttons compact and square
+        button_size = QSize(32, 32)  # Square, icon-like buttons
+        for btn in [self.zoom_in_btn, self.zoom_out_btn, self.fit_to_view_btn]:
+            btn.setFixedSize(button_size)
+            btn.setFont(QFont("Arial", 14))  # Larger font for symbols
+
         toolbar_layout.addWidget(self.zoom_in_btn)
         toolbar_layout.addWidget(self.zoom_out_btn)
         toolbar_layout.addWidget(self.fit_to_view_btn)

@@ -3,20 +3,20 @@ Table model for database tables.
 """
 
 from typing import Optional, List
-from .base import DatabaseObject, Column, Key, Index, Partitioning, Stereotype
+from .base import DatabaseObject, Column, Key, Index, Partitioning, LegacyStereotype
 
 
 class Table(DatabaseObject):
     """Database table definition."""
     
     def __init__(self, name: str, owner: str, tablespace: Optional[str] = None,
-                 stereotype: Stereotype = Stereotype.BUSINESS, color: Optional[str] = None,
+                 stereotype: Optional[str] = None, color: Optional[str] = None,
                  domain: Optional[str] = None, editionable: bool = False,
                  comment: Optional[str] = None):
         super().__init__(name, comment)
         self.owner = owner
         self.tablespace = tablespace
-        self.stereotype = stereotype
+        self.stereotype = stereotype  # Reference to stereotype name
         self.color = color or self._get_default_color(stereotype)
         self.domain = domain
         self.editionable = editionable
@@ -27,13 +27,18 @@ class Table(DatabaseObject):
         self.indexes: List[Index] = []
         self.partitioning: Optional[Partitioning] = None
     
-    def _get_default_color(self, stereotype: Stereotype) -> str:
+    def _get_default_color(self, stereotype: Optional[str]) -> str:
         """Get default color based on stereotype."""
-        color_map = {
-            Stereotype.BUSINESS: "#E3F2FD",  # Light blue
-            Stereotype.TECHNICAL: "#F3E5F5"  # Light purple
+        # Default color if no stereotype specified
+        if not stereotype:
+            return "#4C4C4C"
+        
+        # Legacy color mapping for backward compatibility
+        legacy_color_map = {
+            "business": "#081B2A",  # Dark blue
+            "technical": "#360A3C"  # Dark purple
         }
-        return color_map.get(stereotype, "#FFFFFF")
+        return legacy_color_map.get(stereotype.lower(), "#4C4C4C")
     
     def add_column(self, column: Column) -> None:
         """Add a column to the table."""
@@ -92,7 +97,7 @@ class Table(DatabaseObject):
             'name': self.name,
             'owner': self.owner,
             'tablespace': self.tablespace,
-            'stereotype': self.stereotype.value,
+            'stereotype': self.stereotype,
             'color': self.color,
             'domain': self.domain,
             'editionable': self.editionable,
@@ -109,7 +114,7 @@ class Table(DatabaseObject):
             name=data['name'],
             owner=data['owner'],
             tablespace=data.get('tablespace'),
-            stereotype=Stereotype(data.get('stereotype', Stereotype.BUSINESS.value)),
+            stereotype=data.get('stereotype'),
             color=data.get('color'),
             domain=data.get('domain'),
             editionable=data.get('editionable', False),
@@ -139,4 +144,4 @@ class Table(DatabaseObject):
     
     def __repr__(self) -> str:
         return (f"Table(name='{self.name}', owner='{self.owner}', "
-                f"stereotype={self.stereotype}, columns={len(self.columns)})")
+                f"stereotype='{self.stereotype}', columns={len(self.columns)})")

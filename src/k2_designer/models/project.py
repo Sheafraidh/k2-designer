@@ -8,12 +8,14 @@ from .owner import Owner
 from .table import Table
 from .sequence import Sequence
 from .diagram import Diagram
+from .base import Stereotype
 
 
 class Project:
     """Database design project containing all objects."""
     
-    def __init__(self, name: str = "Untitled Project", description: Optional[str] = None):
+    def __init__(self, name: str = "Untitled Project", description: Optional[str] = None, 
+                 init_default_stereotypes: bool = True):
         self.name = name
         self.description = description
         self.file_path: Optional[str] = None
@@ -24,12 +26,53 @@ class Project:
         self.tables: List[Table] = []
         self.sequences: List[Sequence] = []
         self.diagrams: List[Diagram] = []
+        self.stereotypes: List[Stereotype] = []
+        
+        # Initialize default stereotypes only if requested
+        if init_default_stereotypes:
+            self._initialize_default_stereotypes()
         
         # Foreign key relationships (source_table.column -> target_table.column)
         self.foreign_keys: Dict[str, Dict[str, str]] = {}
         
         # Track last active diagram
         self.last_active_diagram: Optional[str] = None
+    
+    def _initialize_default_stereotypes(self):
+        """Initialize default stereotypes for new projects."""
+        from .base import StereotypeType
+        
+        # Default table stereotypes
+        business_table = Stereotype(
+            name="Business",
+            stereotype_type=StereotypeType.TABLE,
+            description="Business domain table",
+            background_color="#4A90E2"  # Light blue
+        )
+        
+        technical_table = Stereotype(
+            name="Technical",
+            stereotype_type=StereotypeType.TABLE,
+            description="Technical/system table",
+            background_color="#9B59B6"  # Light purple
+        )
+        
+        # Default column stereotypes  
+        business_column = Stereotype(
+            name="Business",
+            stereotype_type=StereotypeType.COLUMN,
+            description="Business domain column",
+            background_color="#85C1E9"  # Lighter blue
+        )
+        
+        technical_column = Stereotype(
+            name="Technical",
+            stereotype_type=StereotypeType.COLUMN,
+            description="Technical/system column",
+            background_color="#BB8FCE"  # Lighter purple
+        )
+        
+        self.stereotypes = [business_table, technical_table, business_column, technical_column]
     
     def add_domain(self, domain: Domain) -> None:
         """Add a domain to the project."""
@@ -199,6 +242,25 @@ class Project:
                 return diagram
         return None
     
+    def add_stereotype(self, stereotype: Stereotype) -> None:
+        """Add a stereotype to the project."""
+        self.stereotypes.append(stereotype)
+    
+    def remove_stereotype(self, stereotype_name: str) -> bool:
+        """Remove a stereotype from the project."""
+        for i, stereotype in enumerate(self.stereotypes):
+            if stereotype.name == stereotype_name:
+                del self.stereotypes[i]
+                return True
+        return False
+    
+    def get_stereotype(self, stereotype_name: str) -> Optional[Stereotype]:
+        """Get a stereotype by name."""
+        for stereotype in self.stereotypes:
+            if stereotype.name == stereotype_name:
+                return stereotype
+        return None
+    
     def to_dict(self) -> dict:
         """Serialize project to dictionary."""
         return {
@@ -209,6 +271,7 @@ class Project:
             'tables': [table.to_dict() for table in self.tables],
             'sequences': [sequence.to_dict() for sequence in self.sequences],
             'diagrams': [diagram.to_dict() for diagram in self.diagrams],
+            'stereotypes': [stereotype.to_dict() for stereotype in self.stereotypes],
             'foreign_keys': self.foreign_keys,
             'last_active_diagram': self.last_active_diagram
         }
@@ -240,6 +303,10 @@ class Project:
         # Load diagrams
         for diagram_data in data.get('diagrams', []):
             project.add_diagram(Diagram.from_dict(diagram_data))
+        
+        # Load stereotypes
+        for stereotype_data in data.get('stereotypes', []):
+            project.add_stereotype(Stereotype.from_dict(stereotype_data))
         
         # Load foreign keys
         project.foreign_keys = data.get('foreign_keys', {})

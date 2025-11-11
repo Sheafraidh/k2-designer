@@ -11,6 +11,7 @@ from PyQt6.QtGui import QIcon, QKeySequence, QAction
 from ..models import Project
 from ..controllers.project_manager import ProjectManager
 from ..dialogs import DomainDialog, OwnerDialog, TableDialog
+from ..dialogs.stereotype_dialog import StereotypeDialog
 from .object_browser import ObjectBrowser
 from .properties_panel import PropertiesPanel
 from .diagram_view import DiagramView
@@ -126,6 +127,11 @@ class MainWindow(QMainWindow):
         self.generate_action.setStatusTip("Generate SQL scripts for database objects")
         self.generate_action.triggered.connect(self._generate_sql)
         
+        self.stereotypes_action = QAction("Manage &Stereotypes", self)
+        self.stereotypes_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_FileDialogListView))
+        self.stereotypes_action.setStatusTip("Manage table and column stereotypes")
+        self.stereotypes_action.triggered.connect(self._manage_stereotypes)
+        
         # Window actions
         self.close_all_action = QAction("Close &All Diagrams", self)
         self.close_all_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_DialogCloseButton))
@@ -167,6 +173,8 @@ class MainWindow(QMainWindow):
         # Tools menu
         tools_menu = menubar.addMenu("&Tools")
         tools_menu.addAction(self.generate_action)
+        tools_menu.addSeparator()
+        tools_menu.addAction(self.stereotypes_action)
         
         # View menu
         view_menu = menubar.addMenu("&View")
@@ -215,6 +223,7 @@ class MainWindow(QMainWindow):
         
         # Connect project changes
         self.project_changed.connect(self.object_browser.set_project)
+        self.project_changed.connect(self.properties_panel.set_project)
         
         # Connect tab widget signals
         self.tab_widget.tabCloseRequested.connect(self._close_diagram_tab)
@@ -378,6 +387,21 @@ class MainWindow(QMainWindow):
         
         dialog = GenerateDialog(self.current_project, parent=self)
         dialog.exec()
+    
+    def _manage_stereotypes(self):
+        """Open the stereotype management dialog."""
+        if not self.current_project:
+            QMessageBox.warning(
+                self, "No Project", "Please open or create a project first."
+            )
+            return
+        
+        dialog = StereotypeDialog(self.current_project, parent=self)
+        if dialog.exec() == dialog.DialogCode.Accepted:
+            # Mark project as modified
+            self.project_modified.emit()
+            # Refresh any open table dialogs or views that might display stereotypes
+            self.object_browser.refresh()
     
     def _open_diagram(self, diagram):
         """Open a specific diagram in a new tab."""
