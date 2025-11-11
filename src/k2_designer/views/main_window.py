@@ -13,7 +13,6 @@ from ..controllers.project_manager import ProjectManager
 from ..dialogs import DomainDialog, OwnerDialog, TableDialog
 from ..dialogs.stereotype_dialog import StereotypeDialog
 from .object_browser import ObjectBrowser
-from .properties_panel import PropertiesPanel
 from .diagram_view import DiagramView
 
 
@@ -68,14 +67,6 @@ class MainWindow(QMainWindow):
         self.object_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | 
                                         Qt.DockWidgetArea.RightDockWidgetArea)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.object_dock)
-        
-        # Properties panel dock
-        self.properties_panel = PropertiesPanel()
-        self.properties_dock = QDockWidget("Properties", self)
-        self.properties_dock.setWidget(self.properties_panel)
-        self.properties_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | 
-                                           Qt.DockWidgetArea.RightDockWidgetArea)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.properties_dock)
         
         # Status bar
         self.status_bar = QStatusBar()
@@ -195,8 +186,7 @@ class MainWindow(QMainWindow):
         view_menu.addAction(self.new_diagram_action)
         view_menu.addSeparator()
         view_menu.addAction(self.object_dock.toggleViewAction())
-        view_menu.addAction(self.properties_dock.toggleViewAction())
-        
+
         # Window menu
         window_menu = menubar.addMenu("&Window")
         window_menu.addAction(self.next_tab_action)
@@ -225,31 +215,12 @@ class MainWindow(QMainWindow):
     
     def _connect_signals(self):
         """Connect signals between components."""
-        # Connect object browser selection to properties panel
-        self.object_browser.selection_changed.connect(
-            self.properties_panel.set_object
-        )
-        
-        # Connect properties panel modifications to refresh object browser
-        self.properties_panel.object_modified.connect(
-            self._on_object_modified
-        )
-        
         # Connect project changes
         self.project_changed.connect(self.object_browser.set_project)
-        self.project_changed.connect(self.properties_panel.set_project)
-        
+
         # Connect tab widget signals
         self.tab_widget.tabCloseRequested.connect(self._close_diagram_tab)
         self.tab_widget.currentChanged.connect(self._on_tab_changed)
-    
-    def _on_object_modified(self, obj):
-        """Handle when an object is modified in the properties panel."""
-        # Refresh the object browser to show updated information
-        self.object_browser._refresh_tree()
-        
-        # Refresh all open diagrams to show updated object information
-        self._refresh_all_diagrams()
     
     def _refresh_all_diagrams(self):
         """Refresh all open diagram tabs to show updated object information."""
@@ -268,17 +239,13 @@ class MainWindow(QMainWindow):
     def _on_diagram_multiple_selection_changed(self, objects):
         """Handle when multiple objects are selected in a diagram."""
         if len(objects) == 1:
-            # Single object - use existing single selection logic
-            self.properties_panel.set_object(objects[0])
+            # Single object - update object browser selection
             self.object_browser.select_object(objects[0])
         elif len(objects) > 1:
-            # Multiple objects - show multiple selection in properties panel
-            self.properties_panel.set_object(objects)
-            # Clear object browser selection for multiple selections
+            # Multiple objects - clear object browser selection
             self.object_browser.tree_widget.clearSelection()
         else:
             # No objects selected
-            self.properties_panel.set_object(None)
             self.object_browser.tree_widget.clearSelection()
     
     def _new_project(self):
@@ -519,15 +486,12 @@ class MainWindow(QMainWindow):
         # Store diagram reference in the view for easy access
         diagram_view.diagram = diagram
         
-        # Connect diagram selection to properties panel and object browser
-        diagram_view.selection_changed.connect(
-            self.properties_panel.set_object
-        )
+        # Connect diagram selection to object browser
         diagram_view.selection_changed.connect(
             self._on_diagram_selection_changed
         )
         
-        # Connect multiple selection signal to properties panel
+        # Connect multiple selection signal handler
         diagram_view.multiple_selection_changed.connect(
             self._on_diagram_multiple_selection_changed
         )
