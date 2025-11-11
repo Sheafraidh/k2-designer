@@ -394,15 +394,6 @@ class ProjectManager:
             VALUES (?, ?)
         ''', (self.current_project.name, self.current_project.description))
         
-        # Save project settings
-        settings = self.current_project.settings
-        cursor.execute('''
-            INSERT INTO project_settings (author, template_directory, output_directory, theme)
-            VALUES (?, ?, ?, ?)
-        ''', (settings.get('author', ''),
-              settings.get('template_directory', ''),
-              settings.get('output_directory', ''),
-              settings.get('theme', 'system')))
 
         # Save domains
         for domain in self.current_project.domains:
@@ -541,16 +532,6 @@ class ProjectManager:
         
         project = Project(project_row[0], project_row[1], init_default_stereotypes=False)
         
-        # Load project settings
-        cursor.execute('SELECT author, template_directory, output_directory, theme FROM project_settings LIMIT 1')
-        settings_row = cursor.fetchone()
-        if settings_row:
-            project.settings = {
-                'author': settings_row[0] or '',
-                'template_directory': settings_row[1] or '',
-                'output_directory': settings_row[2] or '',
-                'theme': settings_row[3] or 'system'
-            }
 
         # Load domains
         cursor.execute('SELECT name, data_type, comment FROM domains')
@@ -766,7 +747,6 @@ class ProjectManager:
             "name": project.name,
             "description": project.description,
             "last_active_diagram": project.last_active_diagram,
-            "settings": project.settings,
             "domains": [
                 {
                     "name": domain.name,
@@ -909,10 +889,6 @@ class ProjectManager:
             )
 
             project.last_active_diagram = data.get("last_active_diagram")
-
-            # Load settings
-            if "settings" in data:
-                project.settings = data["settings"]
 
             # Load domains
             for domain_data in data.get("domains", []):

@@ -11,6 +11,7 @@ from PyQt6.QtGui import QIcon, QKeySequence, QAction, QPalette, QColor
 
 from ..models import Project
 from ..controllers.project_manager import ProjectManager
+from ..controllers.user_settings import UserSettingsManager
 from ..dialogs import DomainDialog, OwnerDialog, TableDialog
 from ..dialogs.stereotype_dialog import StereotypeDialog
 from .object_browser import ObjectBrowser
@@ -26,6 +27,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.project_manager = ProjectManager()
+        self.user_settings = UserSettingsManager()
         self.current_project: Project = None
         self.open_diagrams = {}  # Dictionary to track open diagram tabs {diagram: tab_index}
         self._setup_ui()
@@ -33,7 +35,10 @@ class MainWindow(QMainWindow):
         self._create_menus()
         self._create_toolbars()
         self._connect_signals()
-    
+
+        # Apply saved theme on startup
+        self._apply_user_theme()
+
     def _setup_ui(self):
         """Setup the main UI components."""
         self.setWindowTitle("K2 Designer")
@@ -135,9 +140,9 @@ class MainWindow(QMainWindow):
         self.stereotypes_action.setStatusTip("Manage table and column stereotypes")
         self.stereotypes_action.triggered.connect(self._manage_stereotypes)
         
-        self.settings_action = QAction("Project &Settings...", self)
+        self.settings_action = QAction("User &Settings...", self)
         self.settings_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_FileDialogInfoView))
-        self.settings_action.setStatusTip("Configure project settings")
+        self.settings_action.setStatusTip("Configure user preferences")
         self.settings_action.triggered.connect(self._project_settings)
 
         # Window actions
@@ -255,12 +260,9 @@ class MainWindow(QMainWindow):
             # No objects selected
             self.object_browser.tree_widget.clearSelection()
     
-    def _apply_project_theme(self):
-        """Apply the theme from current project settings."""
-        if not self.current_project:
-            return
-
-        theme = self.current_project.settings.get('theme', 'system')
+    def _apply_user_theme(self):
+        """Apply the theme from user settings."""
+        theme = self.user_settings.theme
 
         if theme == "dark":
             # Dark mode palette
@@ -329,8 +331,6 @@ class MainWindow(QMainWindow):
                     self._update_window_title()
                     self.status_bar.showMessage(f"Project opened: {file_path}")
                     
-                    # Apply saved theme
-                    self._apply_project_theme()
 
                     # Open last active diagram if available
                     self._open_last_active_diagram()
@@ -436,9 +436,6 @@ class MainWindow(QMainWindow):
                     self._update_window_title()
                     self.status_bar.showMessage(f"✅ Project imported from JSON: {file_path}")
 
-                    # Apply saved theme
-                    self._apply_project_theme()
-
                     # Close all existing diagram tabs
                     self._close_all_diagrams()
 
@@ -511,19 +508,14 @@ class MainWindow(QMainWindow):
             self.object_browser.refresh()
     
     def _project_settings(self):
-        """Open the project settings dialog."""
-        if not self.current_project:
-            QMessageBox.warning(
-                self, "No Project", "Please open or create a project first."
-            )
-            return
-
+        """Open the user settings dialog."""
         from ..dialogs import ProjectSettingsDialog
 
-        dialog = ProjectSettingsDialog(self.current_project, parent=self)
+        dialog = ProjectSettingsDialog(user_settings=self.user_settings, parent=self)
         if dialog.exec() == dialog.DialogCode.Accepted:
             dialog.apply_settings()
-            self.status_bar.showMessage("Project settings updated")
+            self._apply_user_theme()  # Apply theme immediately
+            self.status_bar.showMessage("User settings updated")
 
     def _open_diagram(self, diagram):
         """Open a specific diagram in a new tab."""

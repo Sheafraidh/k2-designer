@@ -38,13 +38,6 @@ class Project:
         # Track last active diagram
         self.last_active_diagram: Optional[str] = None
 
-        # Project settings
-        self.settings = {
-            'author': '',
-            'template_directory': '',
-            'output_directory': '',
-            'theme': 'system'  # system, light, or dark
-        }
 
     def _initialize_default_stereotypes(self):
         """Initialize default stereotypes for new projects."""

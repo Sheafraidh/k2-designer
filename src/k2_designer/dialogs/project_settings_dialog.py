@@ -11,12 +11,12 @@ import os
 
 
 class ProjectSettingsDialog(QDialog):
-    """Dialog for editing project-wide settings."""
+    """Dialog for editing user-specific settings."""
 
-    def __init__(self, project=None, parent=None):
+    def __init__(self, user_settings=None, parent=None):
         super().__init__(parent)
-        self.project = project
-        self.setWindowTitle("Project Settings")
+        self.user_settings = user_settings
+        self.setWindowTitle("User Settings")
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
         self._setup_ui()
@@ -27,7 +27,7 @@ class ProjectSettingsDialog(QDialog):
         layout = QVBoxLayout(self)
 
         # Title
-        title_label = QLabel("Project Settings")
+        title_label = QLabel("User Settings")
         title_font = QFont()
         title_font.setPointSize(14)
         title_font.setBold(True)
@@ -118,7 +118,8 @@ class ProjectSettingsDialog(QDialog):
 
         # Info section
         info_label = QLabel(
-            "ℹ️ These settings are saved with your project and can be exported/imported via JSON."
+            "ℹ️ These settings are saved to your user profile (~/.k2designer/settings.json) "
+            "and apply to all projects."
         )
         info_label.setStyleSheet("color: #0066cc; padding: 10px; background-color: #e6f2ff; border-radius: 4px;")
         info_label.setWordWrap(True)
@@ -133,17 +134,16 @@ class ProjectSettingsDialog(QDialog):
         layout.addWidget(button_box)
 
     def _load_settings(self):
-        """Load current settings from the project."""
-        if not self.project:
+        """Load current settings from user settings."""
+        if not self.user_settings:
             return
 
-        settings = self.project.settings
-        self.author_edit.setText(settings.get('author', ''))
-        self.template_dir_edit.setText(settings.get('template_directory', ''))
-        self.output_dir_edit.setText(settings.get('output_directory', ''))
+        self.author_edit.setText(self.user_settings.author)
+        self.template_dir_edit.setText(self.user_settings.template_directory)
+        self.output_dir_edit.setText(self.user_settings.output_directory)
 
         # Load theme setting
-        theme = settings.get('theme', 'system')
+        theme = self.user_settings.theme
         index = self.theme_combo.findData(theme)
         if index >= 0:
             self.theme_combo.setCurrentIndex(index)
@@ -231,9 +231,10 @@ class ProjectSettingsDialog(QDialog):
         }
 
     def apply_settings(self):
-        """Apply the settings to the project."""
-        if self.project:
-            self.project.settings = self.get_settings()
+        """Apply the settings to user settings."""
+        if self.user_settings:
+            settings = self.get_settings()
+            self.user_settings.update_settings(settings)
             # Apply theme immediately
-            self._apply_theme(self.project.settings['theme'])
+            self._apply_theme(settings['theme'])
 
