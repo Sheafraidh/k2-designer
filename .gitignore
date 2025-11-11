@@ -11,3 +11,9 @@ __pycache__/
 
 # generated files
 /generated/*
+
+
+# idea
+.idea/
+*.iml
+*.iws

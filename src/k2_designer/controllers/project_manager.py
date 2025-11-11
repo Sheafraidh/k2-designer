@@ -170,6 +170,16 @@ class ProjectManager:
             )
         ''')
         
+        # Project settings
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS project_settings (
+                id INTEGER PRIMARY KEY,
+                author TEXT,
+                template_directory TEXT,
+                output_directory TEXT
+            )
+        ''')
+
         # Domains
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS domains (
@@ -369,7 +379,7 @@ class ProjectManager:
         tables = [
             'diagram_connections', 'diagram_items', 'diagrams', 'foreign_keys', 'table_partitioning', 'table_indexes', 
             'table_keys', 'columns', 'tables', 'sequences', 
-            'owners', 'domains', 'stereotypes', 'project_info'
+            'owners', 'domains', 'stereotypes', 'project_settings', 'project_info'
         ]
         
         for table in tables:
@@ -383,6 +393,15 @@ class ProjectManager:
             VALUES (?, ?)
         ''', (self.current_project.name, self.current_project.description))
         
+        # Save project settings
+        settings = self.current_project.settings
+        cursor.execute('''
+            INSERT INTO project_settings (author, template_directory, output_directory)
+            VALUES (?, ?, ?)
+        ''', (settings.get('author', ''),
+              settings.get('template_directory', ''),
+              settings.get('output_directory', '')))
+
         # Save domains
         for domain in self.current_project.domains:
             cursor.execute('''
@@ -520,6 +539,16 @@ class ProjectManager:
         
         project = Project(project_row[0], project_row[1], init_default_stereotypes=False)
         
+        # Load project settings
+        cursor.execute('SELECT author, template_directory, output_directory FROM project_settings LIMIT 1')
+        settings_row = cursor.fetchone()
+        if settings_row:
+            project.settings = {
+                'author': settings_row[0] or '',
+                'template_directory': settings_row[1] or '',
+                'output_directory': settings_row[2] or ''
+            }
+
         # Load domains
         cursor.execute('SELECT name, data_type, comment FROM domains')
         for row in cursor.fetchall():
@@ -734,6 +763,7 @@ class ProjectManager:
             "name": project.name,
             "description": project.description,
             "last_active_diagram": project.last_active_diagram,
+            "settings": project.settings,
             "domains": [
                 {
                     "name": domain.name,
@@ -876,6 +906,10 @@ class ProjectManager:
             )
 
             project.last_active_diagram = data.get("last_active_diagram")
+
+            # Load settings
+            if "settings" in data:
+                project.settings = data["settings"]
 
             # Load domains
             for domain_data in data.get("domains", []):

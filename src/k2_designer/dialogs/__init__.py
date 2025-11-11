@@ -9,5 +9,7 @@ from .sequence_dialog import SequenceDialog
 from .diagram_dialog import DiagramDialog
 from .new_project_dialog import NewProjectDialog
 from .generate_dialog import GenerateDialog
+from .project_settings_dialog import ProjectSettingsDialog
 
-__all__ = ['DomainDialog', 'OwnerDialog', 'TableDialog', 'SequenceDialog', 'DiagramDialog', 'NewProjectDialog', 'GenerateDialog']
+__all__ = ['DomainDialog', 'OwnerDialog', 'TableDialog', 'SequenceDialog',
+           'DiagramDialog', 'NewProjectDialog', 'GenerateDialog', 'ProjectSettingsDialog']

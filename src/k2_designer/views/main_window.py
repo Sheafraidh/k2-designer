@@ -134,6 +134,11 @@ class MainWindow(QMainWindow):
         self.stereotypes_action.setStatusTip("Manage table and column stereotypes")
         self.stereotypes_action.triggered.connect(self._manage_stereotypes)
         
+        self.settings_action = QAction("Project &Settings...", self)
+        self.settings_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_FileDialogInfoView))
+        self.settings_action.setStatusTip("Configure project settings")
+        self.settings_action.triggered.connect(self._project_settings)
+
         # Window actions
         self.close_all_action = QAction("Close &All Diagrams", self)
         self.close_all_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_DialogCloseButton))
@@ -180,7 +185,8 @@ class MainWindow(QMainWindow):
         tools_menu.addAction(self.generate_action)
         tools_menu.addSeparator()
         tools_menu.addAction(self.stereotypes_action)
-        
+        tools_menu.addAction(self.settings_action)
+
         # View menu
         view_menu = menubar.addMenu("&View")
         view_menu.addAction(self.new_diagram_action)
@@ -458,6 +464,21 @@ class MainWindow(QMainWindow):
             # Refresh any open table dialogs or views that might display stereotypes
             self.object_browser.refresh()
     
+    def _project_settings(self):
+        """Open the project settings dialog."""
+        if not self.current_project:
+            QMessageBox.warning(
+                self, "No Project", "Please open or create a project first."
+            )
+            return
+
+        from ..dialogs import ProjectSettingsDialog
+
+        dialog = ProjectSettingsDialog(self.current_project, parent=self)
+        if dialog.exec() == dialog.DialogCode.Accepted:
+            dialog.apply_settings()
+            self.status_bar.showMessage("Project settings updated")
+
     def _open_diagram(self, diagram):
         """Open a specific diagram in a new tab."""
         if not self.current_project or not diagram:
