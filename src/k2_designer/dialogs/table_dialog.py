@@ -673,8 +673,8 @@ class TableDialog(QDialog):
         self.cancel_button.clicked.connect(self.reject)
         
         self.color_button.clicked.connect(self._choose_color)
-        self.stereotype_combo.currentTextChanged.connect(self._on_stereotype_changed)
-        
+        self.stereotype_combo.currentTextChanged.connect(self._on_table_stereotype_changed)
+
         self.add_column_btn.clicked.connect(self._add_column)
         self.edit_column_btn.clicked.connect(self._edit_column)
         self.remove_column_btn.clicked.connect(self._remove_column)
@@ -1032,13 +1032,13 @@ class TableDialog(QDialog):
         self.color_preview.setStyleSheet(f"border: 1px solid black; background-color: {color_hex};")
         self.color_preview.setToolTip(f"Current color: {color_hex}")
     
-    def _on_stereotype_changed(self):
-        """Handle stereotype change to update default color."""
+    def _on_table_stereotype_changed(self, text=None):
+        """Handle table stereotype change to update default color."""
         # Auto-update color based on stereotype if color hasn't been manually set
         if not self.is_edit_mode or not hasattr(self, '_color_manually_set'):
             # Only auto-update color if not in edit mode or color hasn't been manually set
-            stereotype_name = self.stereotype_combo.currentText()
-            
+            stereotype_name = text if text is not None else self.stereotype_combo.currentText()
+
             if stereotype_name and self.project and hasattr(self.project, 'stereotypes'):
                 # Find the stereotype in project stereotypes
                 stereotype = None
