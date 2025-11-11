@@ -4,9 +4,10 @@ Main application window with MDI interface.
 
 from PyQt6.QtWidgets import (QMainWindow, QMdiArea, QDockWidget, QVBoxLayout, 
                              QHBoxLayout, QWidget, QMenuBar, QToolBar, QStatusBar,
-                             QFileDialog, QMessageBox, QSplitter, QTabWidget, QLabel)
+                             QFileDialog, QMessageBox, QSplitter, QTabWidget, QLabel,
+                             QApplication)
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QIcon, QKeySequence, QAction
+from PyQt6.QtGui import QIcon, QKeySequence, QAction, QPalette, QColor
 
 from ..models import Project
 from ..controllers.project_manager import ProjectManager
@@ -260,8 +261,6 @@ class MainWindow(QMainWindow):
             return
 
         theme = self.current_project.settings.get('theme', 'system')
-
-        from PyQt6.QtGui import QPalette, QColor
 
         if theme == "dark":
             # Dark mode palette
