@@ -109,6 +109,17 @@ class MainWindow(QMainWindow):
         self.save_as_action.setStatusTip("Save the project with a new name")
         self.save_as_action.triggered.connect(self._save_project_as)
         
+        # Export/Import JSON actions
+        self.export_json_action = QAction("Export to &JSON...", self)
+        self.export_json_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_FileDialogDetailedView))
+        self.export_json_action.setStatusTip("Export project data to JSON format")
+        self.export_json_action.triggered.connect(self._export_to_json)
+
+        self.import_json_action = QAction("Import from J&SON...", self)
+        self.import_json_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_FileDialogContentsView))
+        self.import_json_action.setStatusTip("Import project data from JSON format")
+        self.import_json_action.triggered.connect(self._import_from_json)
+
         self.exit_action = QAction("E&xit", self)
         self.exit_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_DialogCloseButton))
         self.exit_action.setShortcut(QKeySequence.StandardKey.Quit)
@@ -167,6 +178,9 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(self.save_action)
         file_menu.addAction(self.save_as_action)
+        file_menu.addSeparator()
+        file_menu.addAction(self.export_json_action)
+        file_menu.addAction(self.import_json_action)
         file_menu.addSeparator()
         file_menu.addAction(self.exit_action)
         
@@ -356,6 +370,80 @@ class MainWindow(QMainWindow):
                     self, "Error", f"Failed to save project:\n{str(e)}"
                 )
     
+    def _export_to_json(self):
+        """Export the current project to JSON format."""
+        if not self.current_project:
+            QMessageBox.warning(
+                self, "No Project", "Please open or create a project first."
+            )
+            return
+
+        # Suggest a default filename based on current project
+        default_name = ""
+        if self.current_project.file_path:
+            import os
+            default_name = os.path.splitext(self.current_project.file_path)[0] + ".json"
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Export to JSON", default_name, "JSON Files (*.json);;All Files (*)"
+        )
+
+        if file_path:
+            try:
+                if self.project_manager.save_project_to_json(file_path):
+                    self.status_bar.showMessage(f"✅ Project exported to JSON: {file_path}")
+                    QMessageBox.information(
+                        self, "Export Successful",
+                        f"Project successfully exported to:\n{file_path}"
+                    )
+                else:
+                    QMessageBox.critical(
+                        self, "Export Failed", "Failed to export project to JSON."
+                    )
+            except Exception as e:
+                QMessageBox.critical(
+                    self, "Export Error", f"Failed to export project:\n{str(e)}"
+                )
+
+    def _import_from_json(self):
+        """Import a project from JSON format."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Import from JSON", "", "JSON Files (*.json);;All Files (*)"
+        )
+
+        if file_path:
+            try:
+                project = self.project_manager.load_project_from_json(file_path)
+                if project:
+                    self.current_project = project
+                    self.project_changed.emit(project)
+                    self._update_window_title()
+                    self.status_bar.showMessage(f"✅ Project imported from JSON: {file_path}")
+
+                    # Close all existing diagram tabs
+                    self._close_all_diagrams()
+
+                    # Open diagrams from imported project
+                    if project.diagrams:
+                        for diagram in project.diagrams:
+                            self._open_diagram(diagram)
+
+                    QMessageBox.information(
+                        self, "Import Successful",
+                        f"Project successfully imported from:\n{file_path}\n\n"
+                        f"Loaded: {len(project.tables)} tables, "
+                        f"{len(project.sequences)} sequences, "
+                        f"{len(project.diagrams)} diagrams"
+                    )
+                else:
+                    QMessageBox.critical(
+                        self, "Import Failed", "Failed to load project from JSON file."
+                    )
+            except Exception as e:
+                QMessageBox.critical(
+                    self, "Import Error", f"Failed to import project:\n{str(e)}"
+                )
+
     def _new_diagram(self):
         """Create a new diagram."""
         if not self.current_project:
