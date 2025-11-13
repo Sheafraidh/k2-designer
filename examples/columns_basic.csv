@@ -1,0 +1,5 @@
+name,data_type,nullable,default,comment
+ID,NUMBER(10),NO,,Primary key
+NAME,VARCHAR2(100),NO,,Full name
+EMAIL,VARCHAR2(100),YES,,Email address
+CREATED_DATE,DATE,NO,SYSDATE,Creation timestamp

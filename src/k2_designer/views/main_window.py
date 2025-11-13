@@ -39,6 +39,9 @@ class MainWindow(QMainWindow):
         # Apply saved theme on startup
         self._apply_user_theme()
 
+        # Load last opened project if it exists
+        self._load_last_project()
+
     def _setup_ui(self):
         """Setup the main UI components."""
         self.setWindowTitle("K2 Designer")
@@ -296,6 +299,32 @@ class MainWindow(QMainWindow):
             # Use system default
             QApplication.instance().setPalette(self.style().standardPalette())
 
+    def _load_last_project(self):
+        """Load the last opened project on startup."""
+        import os
+
+        last_project_path = self.user_settings.last_project_path
+
+        # Check if we have a last project path and the file exists
+        if last_project_path and os.path.exists(last_project_path):
+            try:
+                project = self.project_manager.load_project(last_project_path)
+                if project:
+                    self.current_project = project
+                    self.project_changed.emit(self.current_project)
+                    self._update_window_title()
+                    self.status_bar.showMessage(f"✓ Reopened last project: {last_project_path}")
+
+                    # Open last active diagram if available
+                    self._open_last_active_diagram()
+                else:
+                    # Failed to load, clear the setting
+                    self.user_settings.last_project_path = ''
+            except Exception as e:
+                # Failed to load, clear the setting
+                print(f"Failed to load last project: {e}")
+                self.user_settings.last_project_path = ''
+
     def _new_project(self):
         """Create a new project."""
         if not self._check_unsaved_changes():
@@ -331,7 +360,10 @@ class MainWindow(QMainWindow):
                     self._update_window_title()
                     self.status_bar.showMessage(f"Project opened: {file_path}")
                     
+                    # Save as last opened project
+                    self.user_settings.last_project_path = file_path
 
+                    # Open last active diagram if available
                     # Open last active diagram if available
                     self._open_last_active_diagram()
                 else:
@@ -354,6 +386,8 @@ class MainWindow(QMainWindow):
             try:
                 if self.project_manager.save_project():
                     self.status_bar.showMessage(f"Project saved: {self.current_project.file_path}")
+                    # Save as last opened project
+                    self.user_settings.last_project_path = self.current_project.file_path
                 else:
                     QMessageBox.critical(
                         self, "Error", "Failed to save project."
@@ -377,6 +411,8 @@ class MainWindow(QMainWindow):
                 if self.project_manager.save_project(file_path):
                     self._update_window_title()
                     self.status_bar.showMessage(f"Project saved: {file_path}")
+                    # Save as last opened project
+                    self.user_settings.last_project_path = file_path
                 else:
                     QMessageBox.critical(
                         self, "Error", "Failed to save project."

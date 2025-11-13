@@ -30,7 +30,8 @@ class UserSettingsManager:
             'author': '',
             'template_directory': '',
             'output_directory': '',
-            'theme': 'system'  # system, light, or dark
+            'theme': 'system',  # system, light, or dark
+            'last_project_path': ''  # Path to last opened project
         }
 
     def load_settings(self):
@@ -118,5 +119,16 @@ class UserSettingsManager:
     def theme(self, value):
         """Set theme setting."""
         self._settings['theme'] = value
+        self.save_settings()
+
+    @property
+    def last_project_path(self):
+        """Get last project path setting."""
+        return self._settings.get('last_project_path', '')
+
+    @last_project_path.setter
+    def last_project_path(self, value):
+        """Set last project path setting."""
+        self._settings['last_project_path'] = value
         self.save_settings()
 

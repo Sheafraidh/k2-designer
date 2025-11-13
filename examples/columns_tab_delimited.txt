@@ -1,0 +1,4 @@
+name	data_type	nullable	default	comment
+USER_ID	NUMBER(10)	NO		User identifier
+USERNAME	VARCHAR2(50)	NO		Login username
+CREATED_DATE	TIMESTAMP	NO	SYSTIMESTAMP	Record creation date

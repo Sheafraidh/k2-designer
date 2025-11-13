@@ -339,11 +339,13 @@ class TableDialog(QDialog):
         column_buttons.setSpacing(5)  # Reduced spacing between buttons
         self.add_column_btn = QPushButton("Add Column")
         self.edit_column_btn = QPushButton("Edit Column")
-        self.remove_column_btn = QPushButton("Remove Column")
-        
+        self.remove_column_btn = QPushButton("Remove Columns")
+        self.import_csv_btn = QPushButton("Import from CSV...")
+
         column_buttons.addWidget(self.add_column_btn)
         column_buttons.addWidget(self.edit_column_btn)
         column_buttons.addWidget(self.remove_column_btn)
+        column_buttons.addWidget(self.import_csv_btn)
         column_buttons.addStretch()
         
         layout.addLayout(column_buttons)
@@ -504,8 +506,7 @@ class TableDialog(QDialog):
             # Setup filter stereotypes
             self._setup_filter_stereotypes()
             
-            # Make name readonly in edit mode
-            self.name_edit.setReadOnly(True)
+            # Name is now editable in edit mode (removed read-only restriction)
         elif self.selected_owner:
             # Pre-select owner in add mode
             owner_index = self.owner_combo.findText(self.selected_owner)
@@ -678,7 +679,8 @@ class TableDialog(QDialog):
         self.add_column_btn.clicked.connect(self._add_column)
         self.edit_column_btn.clicked.connect(self._edit_column)
         self.remove_column_btn.clicked.connect(self._remove_column)
-        
+        self.import_csv_btn.clicked.connect(self._import_from_csv)
+
         # Connect table item changes for multi-select updates
         self.columns_table.itemChanged.connect(self._on_item_changed)
         
@@ -723,13 +725,138 @@ class TableDialog(QDialog):
                 self.columns_table.editItem(self.columns_table.item(current_row, current_col))
     
     def _remove_column(self):
-        """Remove the selected column."""
-        current_row = self.columns_table.currentRow()
-        if current_row >= 0:
-            self.columns_table.removeRow(current_row)
-            # Refresh filters after removing row
+        """Remove all selected columns."""
+        # Get all selected rows (unique row numbers)
+        selected_rows = set()
+        for item in self.columns_table.selectedItems():
+            selected_rows.add(item.row())
+
+        if not selected_rows:
+            # No selection, try current row
+            current_row = self.columns_table.currentRow()
+            if current_row >= 0:
+                selected_rows.add(current_row)
+
+        if selected_rows:
+            # Confirm if removing multiple rows
+            if len(selected_rows) > 1:
+                from PyQt6.QtWidgets import QMessageBox
+                reply = QMessageBox.question(
+                    self,
+                    "Remove Columns",
+                    f"Remove {len(selected_rows)} selected columns?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
+
+            # Remove rows in reverse order to maintain indices
+            for row in sorted(selected_rows, reverse=True):
+                self.columns_table.removeRow(row)
+
+            # Refresh filters after removing rows
             self._apply_filters()
     
+    def _import_from_csv(self):
+        """Import columns from CSV data."""
+        from .csv_import_dialog import CSVImportDialog
+
+        dialog = CSVImportDialog(parent=self)
+        if dialog.exec() == dialog.DialogCode.Accepted:
+            columns = dialog.get_columns()
+
+            if columns:
+                # Ask if user wants to append or replace
+                from PyQt6.QtWidgets import QMessageBox
+
+                current_row_count = self.columns_table.rowCount()
+                if current_row_count > 0:
+                    reply = QMessageBox.question(
+                        self,
+                        "Import Columns",
+                        f"You have {current_row_count} existing columns.\n\n"
+                        "Do you want to:\n"
+                        "- Yes: Append imported columns to existing ones\n"
+                        "- No: Replace all existing columns\n"
+                        "- Cancel: Cancel import",
+                        QMessageBox.StandardButton.Yes |
+                        QMessageBox.StandardButton.No |
+                        QMessageBox.StandardButton.Cancel,
+                        QMessageBox.StandardButton.Yes
+                    )
+
+                    if reply == QMessageBox.StandardButton.Cancel:
+                        return
+                    elif reply == QMessageBox.StandardButton.No:
+                        # Clear existing columns
+                        self.columns_table.setRowCount(0)
+                    # If Yes, we keep existing and append
+
+                # Import the columns
+                for col_data in columns:
+                    self._add_imported_column(col_data)
+
+                # Refresh filters
+                self._apply_filters()
+
+                # Show success message
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.information(
+                    self,
+                    "Import Successful",
+                    f"Successfully imported {len(columns)} columns."
+                )
+
+    def _add_imported_column(self, col_data):
+        """Add an imported column to the table."""
+        row = self.columns_table.rowCount()
+        self.columns_table.insertRow(row)
+
+        # Name
+        name_item = QTableWidgetItem(col_data['name'])
+        self.columns_table.setItem(row, 0, name_item)
+
+        # Data Type
+        data_type_item = QTableWidgetItem(col_data['data_type'])
+        self.columns_table.setItem(row, 1, data_type_item)
+
+        # Nullable (checkbox)
+        nullable_widget = QWidget()
+        nullable_layout = QHBoxLayout(nullable_widget)
+        nullable_layout.setContentsMargins(0, 0, 0, 0)
+        nullable_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        nullable_checkbox = QCheckBox()
+        nullable_checkbox.setChecked(col_data['nullable'])
+        nullable_widget.checkbox = nullable_checkbox  # Store reference
+        nullable_layout.addWidget(nullable_checkbox)
+        self.columns_table.setCellWidget(row, 2, nullable_widget)
+
+        # Default
+        default_item = QTableWidgetItem(col_data['default'])
+        self.columns_table.setItem(row, 3, default_item)
+
+        # Comment
+        comment_item = QTableWidgetItem(col_data['comment'])
+        self.columns_table.setItem(row, 4, comment_item)
+
+        # Domain (combobox) - set to empty/None
+        domain_combo = QComboBox()
+        domain_combo.addItem("", None)
+        if self.project and hasattr(self.project, 'domains'):
+            for domain in self.project.domains:
+                domain_combo.addItem(domain.name, domain.name)
+        self.columns_table.setCellWidget(row, 5, domain_combo)
+
+        # Stereotype (combobox) - set to empty/None
+        stereotype_combo = QComboBox()
+        stereotype_combo.addItem("", None)
+        if self.project and hasattr(self.project, 'stereotypes'):
+            for stereotype in self.project.stereotypes:
+                if stereotype.stereotype_type.value == 'column':
+                    stereotype_combo.addItem(stereotype.name, stereotype.name)
+        self.columns_table.setCellWidget(row, 6, stereotype_combo)
+
     def _on_item_changed(self, item):
         """Handle item change in columns table for multi-select updates."""
         # Skip if item change was triggered programmatically (to prevent recursion)
@@ -1071,6 +1198,8 @@ class TableDialog(QDialog):
         
         if self.is_edit_mode:
             # Update existing table
+            self.table.name = name  # Allow name changes
+            self.table.owner = owner  # Allow owner changes
             self.table.tablespace = tablespace
             self.table.stereotype = stereotype
             self.table.color = color
@@ -1094,6 +1223,9 @@ class TableDialog(QDialog):
             # Add columns
             self._update_table_columns()
         
+        # Refresh active diagram if it exists
+        self._refresh_active_diagram()
+
         self.accept()
     
     def _update_table_columns(self):
@@ -1148,6 +1280,22 @@ class TableDialog(QDialog):
                     )
                     self.table.add_column(column)
     
+    def _refresh_active_diagram(self):
+        """Refresh the active diagram to show updated table structure."""
+        # Find the main window
+        main_window = self.parent()
+        while main_window and main_window.__class__.__name__ != 'MainWindow':
+            main_window = main_window.parent()
+
+        if main_window and hasattr(main_window, 'tab_widget'):
+            # Get the current active tab
+            current_tab = main_window.tab_widget.currentWidget()
+
+            # Check if it's a diagram view
+            if current_tab and hasattr(current_tab, 'refresh_diagram'):
+                # Refresh the diagram to show changes
+                current_tab.refresh_diagram()
+
     def _validate_form(self) -> bool:
         """Validate the form data."""
         name = self.name_edit.text().strip()

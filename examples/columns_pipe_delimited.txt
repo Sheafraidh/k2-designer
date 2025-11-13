@@ -1,0 +1,4 @@
+name|data_type|nullable|default|comment
+ACCOUNT_ID|NUMBER(10)|NO||Account ID
+ACCOUNT_NAME|VARCHAR2(200)|NO||Account name
+BALANCE|NUMBER(15,2)|YES|0|Current balance
