@@ -148,6 +148,11 @@ class MainWindow(QMainWindow):
         self.settings_action.setStatusTip("Configure user preferences")
         self.settings_action.triggered.connect(self._project_settings)
 
+        self.generate_test_data_action = QAction("Generate &Test Data (HR Schema)", self)
+        self.generate_test_data_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_FileDialogDetailedView))
+        self.generate_test_data_action.setStatusTip("Generate test data similar to Oracle HR schema")
+        self.generate_test_data_action.triggered.connect(self._generate_test_data)
+
         # Window actions
         self.close_all_action = QAction("Close &All Diagrams", self)
         self.close_all_action.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_DialogCloseButton))
@@ -195,6 +200,8 @@ class MainWindow(QMainWindow):
         tools_menu.addSeparator()
         tools_menu.addAction(self.stereotypes_action)
         tools_menu.addAction(self.settings_action)
+        tools_menu.addSeparator()
+        tools_menu.addAction(self.generate_test_data_action)
 
         # View menu
         view_menu = menubar.addMenu("&View")
@@ -739,6 +746,72 @@ class MainWindow(QMainWindow):
         else:
             self.setWindowTitle("K2 Designer")
     
+    def _generate_test_data(self):
+        """Generate test data (HR schema) for testing purposes."""
+        if not self.current_project:
+            QMessageBox.warning(
+                self,
+                "No Project",
+                "Please create or open a project first."
+            )
+            return
+
+        # Confirm with user
+        reply = QMessageBox.question(
+            self,
+            "Generate Test Data",
+            "This will replace all current project data with Oracle HR schema test data.\n\n"
+            "This includes:\n"
+            "• Domains (ID_NUMBER, NAME_VARCHAR, etc.)\n"
+            "• Users (HR, SYS with tablespaces)\n"
+            "• Tables (EMPLOYEES, DEPARTMENTS, JOBS, etc.)\n"
+            "• Diagram with all tables\n\n"
+            "Do you want to continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                from ..controllers.test_data_generator import TestDataGenerator
+
+                # Generate the test data
+                TestDataGenerator.generate_hr_schema(self.current_project)
+
+                # Mark project as modified
+                # TODO: Add modified flag to project when implemented
+
+                # Refresh the UI
+                self.project_changed.emit(self.current_project)
+
+                # Close all open diagrams
+                self._close_all_diagrams()
+
+                # Open the generated diagram
+                if self.current_project.diagrams:
+                    self._open_diagram(self.current_project.diagrams[0])
+
+                self.status_bar.showMessage("✓ Test data (HR schema) generated successfully")
+
+                QMessageBox.information(
+                    self,
+                    "Test Data Generated",
+                    "Oracle HR schema test data has been generated successfully!\n\n"
+                    "The schema includes 7 tables:\n"
+                    "• REGIONS, COUNTRIES, LOCATIONS\n"
+                    "• DEPARTMENTS, JOBS\n"
+                    "• EMPLOYEES, JOB_HISTORY\n\n"
+                    "All with proper foreign keys, domains, and a diagram."
+                )
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "Error",
+                    f"Failed to generate test data: {str(e)}"
+                )
+                import traceback
+                traceback.print_exc()
+
     def _about(self):
         """Show about dialog."""
         QMessageBox.about(
