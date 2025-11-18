@@ -1539,3 +1539,51 @@ class DiagramView(QWidget):
             self.scene.connection_items.clear()
             self.scene._load_tables()
             self.scene._load_connections()
+
+    def save_view_state(self):
+        """Save the current view state (zoom and scroll position) to the diagram."""
+        if not self.diagram:
+            return
+
+        # Get the current transformation matrix
+        transform = self.graphics_view.transform()
+        self.diagram.zoom_level = transform.m11()  # m11() is the horizontal scale factor
+
+        # Get the current scroll position
+        horizontal_scrollbar = self.graphics_view.horizontalScrollBar()
+        vertical_scrollbar = self.graphics_view.verticalScrollBar()
+
+        if horizontal_scrollbar:
+            self.diagram.scroll_x = horizontal_scrollbar.value()
+        if vertical_scrollbar:
+            self.diagram.scroll_y = vertical_scrollbar.value()
+
+    def restore_view_state(self):
+        """Restore the view state (zoom and scroll position) from the diagram."""
+        if not self.diagram:
+            return
+
+        # Restore zoom level
+        if self.diagram.zoom_level != 1.0:
+            # Reset any existing transform first
+            self.graphics_view.resetTransform()
+            # Apply the saved zoom level
+            self.graphics_view.scale(self.diagram.zoom_level, self.diagram.zoom_level)
+
+        # Restore scroll position (need to do this after the scene is fully loaded)
+        # Use QTimer to ensure the scene is rendered before setting scroll position
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(10, self._apply_scroll_position)
+
+    def _apply_scroll_position(self):
+        """Apply the saved scroll position (called after a short delay)."""
+        if not self.diagram:
+            return
+
+        horizontal_scrollbar = self.graphics_view.horizontalScrollBar()
+        vertical_scrollbar = self.graphics_view.verticalScrollBar()
+
+        if horizontal_scrollbar and self.diagram.scroll_x != 0.0:
+            horizontal_scrollbar.setValue(int(self.diagram.scroll_x))
+        if vertical_scrollbar and self.diagram.scroll_y != 0.0:
+            vertical_scrollbar.setValue(int(self.diagram.scroll_y))

@@ -391,6 +391,9 @@ class MainWindow(QMainWindow):
             self._save_project_as()
         else:
             try:
+                # Save view state of all open diagrams before saving project
+                self._save_all_diagram_view_states()
+
                 if self.project_manager.save_project():
                     self.status_bar.showMessage(f"Project saved: {self.current_project.file_path}")
                     # Save as last opened project
@@ -415,6 +418,9 @@ class MainWindow(QMainWindow):
         
         if file_path:
             try:
+                # Save view state of all open diagrams before saving project
+                self._save_all_diagram_view_states()
+
                 if self.project_manager.save_project(file_path):
                     self._update_window_title()
                     self.status_bar.showMessage(f"Project saved: {file_path}")
@@ -588,6 +594,9 @@ class MainWindow(QMainWindow):
         # Store diagram reference in the view for easy access
         diagram_view.diagram = diagram
         
+        # Restore the saved view state (zoom and scroll position)
+        diagram_view.restore_view_state()
+
         # Connect diagram selection to object browser
         diagram_view.selection_changed.connect(
             self._on_diagram_selection_changed
@@ -628,6 +637,10 @@ class MainWindow(QMainWindow):
         
         diagram = diagram_view.diagram
         
+        # Save the current view state (zoom and scroll position) before closing
+        if hasattr(diagram_view, 'save_view_state'):
+            diagram_view.save_view_state()
+
         # Remove from tracking
         if diagram in self.open_diagrams:
             del self.open_diagrams[diagram]
@@ -736,6 +749,14 @@ class MainWindow(QMainWindow):
         # TODO: Implement unsaved changes detection
         return True
     
+    def _save_all_diagram_view_states(self):
+        """Save the view state (zoom and scroll) of all open diagram tabs."""
+        for i in range(self.tab_widget.count()):
+            widget = self.tab_widget.widget(i)
+            if widget and hasattr(widget, 'diagram') and hasattr(widget, 'save_view_state'):
+                # This is a diagram view, save its state
+                widget.save_view_state()
+
     def _update_window_title(self):
         """Update the main window title."""
         if self.current_project:
@@ -823,6 +844,13 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         """Handle application close event."""
         if self._check_unsaved_changes():
+            # Save view state of all open diagrams
+            self._save_all_diagram_view_states()
+
+            # Save the last opened project path
+            if self.current_project and self.current_project.file_path:
+                self.user_settings.last_project_path = self.current_project.file_path
+
             event.accept()
         else:
             event.ignore()
