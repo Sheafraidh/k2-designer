@@ -40,6 +40,9 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 
+from ..controllers.template_manager import TemplateManager, TemplateInfo
+from ..controllers.user_settings import UserSettingsManager
+
 
 class SqlGeneratorWorker(QThread):
     """Worker thread for generating SQL files."""
@@ -50,13 +53,15 @@ class SqlGeneratorWorker(QThread):
     error_occurred = pyqtSignal(str)
     
     def __init__(self, project, output_dir: str, selected_objects: Dict[str, List[Any]], 
-                 single_file: bool = False, single_filename: str = "database_objects.sql"):
+                 single_file: bool = False, single_filename: str = "database_objects.sql",
+                 template_selections: Dict[str, List[TemplateInfo]] = None):
         super().__init__()
         self.project = project
         self.output_dir = output_dir
         self.selected_objects = selected_objects
         self.single_file = single_file
         self.single_filename = single_filename or "database_objects.sql"
+        self.template_selections = template_selections or {}  # object_id -> [templates]
         self.total_objects = sum(len(objects) for objects in selected_objects.values())
         self.current_progress = 0
         self._setup_templates()
@@ -64,32 +69,25 @@ class SqlGeneratorWorker(QThread):
     def _setup_templates(self):
         """Setup Jinja2 template environment."""
         self.jinja_env = None
-        self.table_template = None
-        self.sequence_template = None
-        self.user_template = None
-        
+        self.templates_cache = {}  # Cache loaded templates by filepath
+
         if JINJA2_AVAILABLE:
             # Get the templates directory path
             current_dir = os.path.dirname(os.path.abspath(__file__))
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
-            templates_dir = os.path.join(project_root, 'templates')
-            
-            if os.path.exists(templates_dir):
+            self.templates_dir = os.path.join(project_root, 'templates')
+
+            if os.path.exists(self.templates_dir):
                 try:
-                    self.jinja_env = Environment(loader=FileSystemLoader(templates_dir))
-                    
-                    # Load templates
-                    self.table_template = self.jinja_env.get_template('create_table.sql.j2')
-                    self.sequence_template = self.jinja_env.get_template('create_sequence.sql.j2')
-                    self.user_template = self.jinja_env.get_template('create_user.sql.j2')
-                    
-                    print(f"✅ Loaded Jinja2 templates from: {templates_dir}")
+                    # Create environment that can load from subdirectories
+                    self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
+                    print(f"✅ Jinja2 environment ready: {self.templates_dir}")
                 except Exception as e:
-                    print(f"⚠️ Error loading Jinja2 templates: {e}")
+                    print(f"⚠️ Error setting up Jinja2 environment: {e}")
                     self.jinja_env = None
             else:
-                print(f"⚠️ Templates directory not found: {templates_dir}")
-    
+                print(f"⚠️ Templates directory not found: {self.templates_dir}")
+
     def run(self):
         """Generate SQL files for selected objects."""
         try:
@@ -165,23 +163,50 @@ class SqlGeneratorWorker(QThread):
             self.log_message.emit(f"❌ Error generating {self.single_filename}: {str(e)}")
     
     def _generate_separate_files(self):
-        """Generate separate files for each object."""
+        """Generate separate files for each object using selected templates."""
         # Generate tables
         if 'tables' in self.selected_objects:
             for table in self.selected_objects['tables']:
-                self._generate_table_sql(table)
+                object_id = f"table_{table.owner}.{table.name}"
+                templates = self.template_selections.get(object_id, [])
+
+                if templates:
+                    for template_info in templates:
+                        self._generate_from_template(table, template_info, 'table')
+                else:
+                    # Fallback to default
+                    self._generate_table_sql(table)
+
                 self._update_progress()
         
         # Generate sequences
         if 'sequences' in self.selected_objects:
             for sequence in self.selected_objects['sequences']:
-                self._generate_sequence_sql(sequence)
+                object_id = f"sequence_{sequence.owner}.{sequence.name}"
+                templates = self.template_selections.get(object_id, [])
+
+                if templates:
+                    for template_info in templates:
+                        self._generate_from_template(sequence, template_info, 'sequence')
+                else:
+                    # Fallback to default
+                    self._generate_sequence_sql(sequence)
+
                 self._update_progress()
         
         # Generate users/owners
         if 'owners' in self.selected_objects:
             for owner in self.selected_objects['owners']:
-                self._generate_owner_sql(owner)
+                object_id = f"owner_{owner.name}"
+                templates = self.template_selections.get(object_id, [])
+
+                if templates:
+                    for template_info in templates:
+                        self._generate_from_template(owner, template_info, 'owner')
+                else:
+                    # Fallback to default
+                    self._generate_owner_sql(owner)
+
                 self._update_progress()
     
     def _update_progress(self):
@@ -190,6 +215,53 @@ class SqlGeneratorWorker(QThread):
         progress_percent = int((self.current_progress / self.total_objects) * 100)
         self.progress_updated.emit(progress_percent)
     
+    def _generate_from_template(self, obj, template_info: TemplateInfo, obj_type: str):
+        """Generate SQL from a specific template."""
+        # Construct filename
+        if obj_type == 'table':
+            base_name = f"{obj.name.lower()}"
+            obj_name = f"{obj.owner}.{obj.name}"
+            context = {'table': obj}
+        elif obj_type == 'sequence':
+            base_name = f"{obj.name.lower()}_seq"
+            obj_name = f"{obj.owner}.{obj.name}"
+            context = {'sequence': obj}
+        elif obj_type == 'owner':
+            base_name = f"{obj.name.lower()}_user"
+            obj_name = obj.name
+            context = {'owner': obj}
+        else:
+            base_name = "object"
+            obj_name = "unknown"
+            context = {}
+
+        # Create filename with template name
+        template_base = template_info.filename.replace('.sql.j2', '')
+        filename = f"{base_name}_{template_base}.sql"
+        filepath = os.path.join(self.output_dir, filename)
+
+        try:
+            # Load and render template
+            if self.jinja_env:
+                # Get relative path from templates dir
+                rel_path = os.path.relpath(template_info.filepath, self.templates_dir)
+                # Normalize path separators for Jinja2
+                template_path = rel_path.replace(os.sep, '/')
+
+                template = self.jinja_env.get_template(template_path)
+                sql_content = template.render(**context)
+
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(sql_content)
+
+                self.log_message.emit(f"📄 Generated: {filename} using {template_info.name}")
+            else:
+                self.log_message.emit(f"⚠️ Jinja2 not available, skipping: {filename}")
+
+        except Exception as e:
+            self.log_message.emit(f"❌ Error generating {filename}: {str(e)}")
+
+
     def _generate_table_sql(self, table):
         """Generate SQL for a table."""
         filename = f"{table.name.lower()}.sql"
@@ -240,10 +312,11 @@ class SqlGeneratorWorker(QThread):
     
     def _create_table_sql(self, table) -> str:
         """Create CREATE TABLE SQL statement using Jinja2 template if available."""
-        if self.table_template:
+        if self.jinja_env:
             try:
-                # Use Jinja2 template
-                return self.table_template.render(table=table)
+                # Try to load default create table template
+                template = self.jinja_env.get_template('tables/create_table.sql.j2')
+                return template.render(table=table)
             except Exception as e:
                 print(f"⚠️ Error rendering table template, falling back to basic generation: {e}")
         
@@ -282,10 +355,11 @@ class SqlGeneratorWorker(QThread):
     
     def _create_sequence_sql(self, sequence) -> str:
         """Create CREATE SEQUENCE SQL statement using Jinja2 template if available."""
-        if self.sequence_template:
+        if self.jinja_env:
             try:
-                # Use Jinja2 template
-                return self.sequence_template.render(sequence=sequence)
+                # Try to load default create sequence template
+                template = self.jinja_env.get_template('sequences/create_sequence.sql.j2')
+                return template.render(sequence=sequence)
             except Exception as e:
                 print(f"⚠️ Error rendering sequence template, falling back to basic generation: {e}")
         
@@ -324,10 +398,11 @@ class SqlGeneratorWorker(QThread):
     
     def _create_owner_sql(self, owner) -> str:
         """Create user/owner SQL statements using Jinja2 template if available."""
-        if self.user_template:
+        if self.jinja_env:
             try:
-                # Use Jinja2 template
-                return self.user_template.render(owner=owner)
+                # Try to load default create user template
+                template = self.jinja_env.get_template('users/create_user.sql.j2')
+                return template.render(owner=owner)
             except Exception as e:
                 print(f"⚠️ Error rendering user template, falling back to basic generation: {e}")
         
@@ -368,15 +443,26 @@ class GenerateDialog(QDialog):
         super().__init__(parent)
         self.project = project
         self.selected_objects = {'tables': [], 'sequences': [], 'owners': []}
+        self.template_selections = {}  # object_id -> [TemplateInfo]
         self.worker = None
         
+        # Setup user settings
+        self.user_settings = UserSettingsManager()
+
+        # Setup template manager
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+        templates_dir = os.path.join(project_root, 'templates')
+        self.template_manager = TemplateManager(templates_dir)
+
         self.setWindowTitle("Generate SQL Scripts")
         self.setModal(True)
-        self.resize(800, 600)
-        
+        self.resize(1200, 700)  # Wider to accommodate template tree
+
         self._setup_ui()
         self._populate_trees()
-    
+        self._load_default_output_directory()
+
     def _setup_ui(self):
         """Setup the dialog UI."""
         layout = QVBoxLayout(self)
@@ -421,36 +507,60 @@ class GenerateDialog(QDialog):
         
         layout.addWidget(options_group)
         
-        # Main splitter
-        splitter = QSplitter(Qt.Orientation.Vertical)
-        
+        # Main horizontal splitter (Template Tree | Object Selection)
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # LEFT SIDE: Template Tree
+        template_group = QGroupBox("Available Templates")
+        template_layout = QVBoxLayout(template_group)
+
+        template_help = QLabel("Select templates to generate for each object.\nTemplates are organized by directory.")
+        template_help.setWordWrap(True)
+        template_help.setStyleSheet("color: gray; font-size: 10px;")
+        template_layout.addWidget(template_help)
+
+        self.template_tree = QTreeWidget()
+        self.template_tree.setHeaderLabels(["Template", "Description"])
+        self.template_tree.setColumnWidth(0, 200)
+        self.template_tree.itemChanged.connect(self._on_template_item_changed)
+        template_layout.addWidget(self.template_tree)
+
+        main_splitter.addWidget(template_group)
+
+        # RIGHT SIDE: Vertical splitter for object selection and progress
+        right_splitter = QSplitter(Qt.Orientation.Vertical)
+
         # Object selection tabs
         selection_group = QGroupBox("Select Objects to Generate")
         selection_layout = QVBoxLayout(selection_group)
         
         self.tab_widget = QTabWidget()
-        
+        self.tab_widget.currentChanged.connect(self._on_tab_changed)
+
         # Tables tab
         self.tables_tree = QTreeWidget()
         self.tables_tree.setHeaderLabels(["Tables", "Owner", "Columns"])
         self.tables_tree.itemChanged.connect(self._on_table_item_changed)
+        self.tables_tree.itemSelectionChanged.connect(lambda: self._update_template_tree_for_selection('table'))
         self.tab_widget.addTab(self.tables_tree, "Tables")
         
         # Sequences tab
         self.sequences_tree = QTreeWidget()
         self.sequences_tree.setHeaderLabels(["Sequences", "Owner", "Properties"])
         self.sequences_tree.itemChanged.connect(self._on_sequence_item_changed)
+        self.sequences_tree.itemSelectionChanged.connect(lambda: self._update_template_tree_for_selection('sequence'))
         self.tab_widget.addTab(self.sequences_tree, "Sequences")
         
         # Owners/Users tab
         self.owners_tree = QTreeWidget()
         self.owners_tree.setHeaderLabels(["Users/Owners", "Default Tablespace", "Properties"])
         self.owners_tree.itemChanged.connect(self._on_owner_item_changed)
+        self.owners_tree.itemSelectionChanged.connect(lambda: self._update_template_tree_for_selection('user'))
         self.tab_widget.addTab(self.owners_tree, "Users")
         
         selection_layout.addWidget(self.tab_widget)
-        splitter.addWidget(selection_group)
-        
+        right_splitter.addWidget(selection_group)
+
         # Progress and log section
         progress_group = QGroupBox("Generation Progress")
         progress_layout = QVBoxLayout(progress_group)
@@ -464,15 +574,21 @@ class GenerateDialog(QDialog):
         self.log_text.setFont(QFont("Consolas", 9))
         progress_layout.addWidget(self.log_text)
         
-        splitter.addWidget(progress_group)
-        layout.addWidget(splitter)
-        
+        right_splitter.addWidget(progress_group)
+
+        main_splitter.addWidget(right_splitter)
+
+        # Set splitter proportions (30% template tree, 70% objects)
+        main_splitter.setSizes([360, 840])
+
+        layout.addWidget(main_splitter)
+
         # Buttons
         button_layout = QHBoxLayout()
         
         self.select_all_btn = QPushButton("Select All")
         self.select_all_btn.clicked.connect(self._select_all)
-        
+
         self.select_none_btn = QPushButton("Select None")
         self.select_none_btn.clicked.connect(self._select_none)
         
@@ -490,23 +606,147 @@ class GenerateDialog(QDialog):
         button_layout.addWidget(self.close_btn)
         
         layout.addLayout(button_layout)
-    
+
+        # Populate template tree
+        self._populate_template_tree()
+
+    def _populate_template_tree(self):
+        """Populate the template tree with available templates."""
+        self.template_tree.clear()
+
+        # Get all template groups
+        groups = self.template_manager.get_groups()
+
+        for group_name in groups:
+            # Create group node
+            group_item = QTreeWidgetItem(self.template_tree)
+            group_item.setText(0, group_name.title())
+            group_item.setText(1, f"Templates for {group_name}")
+            group_item.setExpanded(True)
+
+            # Add templates for this group
+            templates = self.template_manager.get_templates_for_group(group_name)
+            for template_info in templates:
+                template_item = QTreeWidgetItem(group_item)
+                template_item.setText(0, template_info.name)
+                template_item.setText(1, template_info.description)
+                template_item.setFlags(template_item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                template_item.setCheckState(0, Qt.CheckState.Unchecked)
+                template_item.setData(0, Qt.ItemDataRole.UserRole, template_info)
+
+    def _on_tab_changed(self, index):
+        """Handle tab change to update template tree."""
+        # Determine object type from tab
+        if index == 0:  # Tables
+            self._update_template_tree_for_selection('table')
+        elif index == 1:  # Sequences
+            self._update_template_tree_for_selection('sequence')
+        elif index == 2:  # Users
+            self._update_template_tree_for_selection('user')
+
+    def _update_template_tree_for_selection(self, object_type: str):
+        """Update template tree to show only relevant templates for the selected object type."""
+        # Enable/disable templates based on object type
+        root = self.template_tree.invisibleRootItem()
+
+        for i in range(root.childCount()):
+            group_item = root.child(i)
+
+            for j in range(group_item.childCount()):
+                template_item = group_item.child(j)
+                template_info = template_item.data(0, Qt.ItemDataRole.UserRole)
+
+                if template_info:
+                    # Enable only if template matches object type
+                    is_enabled = template_info.object_type == object_type
+                    template_item.setDisabled(not is_enabled)
+
+                    # Set visual style for disabled items
+                    if not is_enabled:
+                        template_item.setForeground(0, Qt.GlobalColor.gray)
+                        template_item.setForeground(1, Qt.GlobalColor.gray)
+                    else:
+                        template_item.setForeground(0, Qt.GlobalColor.black)
+                        template_item.setForeground(1, Qt.GlobalColor.black)
+
+    def _on_template_item_changed(self, item, column):
+        """Handle template item check state change."""
+        if column != 0:
+            return
+
+        template_info = item.data(0, Qt.ItemDataRole.UserRole)
+        if not template_info:
+            return  # This is a group item, not a template
+
+        # Get currently selected object from the active tab
+        current_tab_index = self.tab_widget.currentIndex()
+
+        if current_tab_index == 0:  # Tables
+            selected_items = self.tables_tree.selectedItems()
+            if selected_items:
+                for sel_item in selected_items:
+                    table = sel_item.data(0, Qt.ItemDataRole.UserRole)
+                    if table:
+                        object_id = f"table_{table.owner}.{table.name}"
+                        self._update_template_selection(object_id, template_info, item.checkState(0))
+
+        elif current_tab_index == 1:  # Sequences
+            selected_items = self.sequences_tree.selectedItems()
+            if selected_items:
+                for sel_item in selected_items:
+                    sequence = sel_item.data(0, Qt.ItemDataRole.UserRole)
+                    if sequence:
+                        object_id = f"sequence_{sequence.owner}.{sequence.name}"
+                        self._update_template_selection(object_id, template_info, item.checkState(0))
+
+        elif current_tab_index == 2:  # Users
+            selected_items = self.owners_tree.selectedItems()
+            if selected_items:
+                for sel_item in selected_items:
+                    owner = sel_item.data(0, Qt.ItemDataRole.UserRole)
+                    if owner:
+                        object_id = f"owner_{owner.name}"
+                        self._update_template_selection(object_id, template_info, item.checkState(0))
+
+    def _update_template_selection(self, object_id: str, template_info: TemplateInfo, check_state):
+        """Update template selection for an object."""
+        if object_id not in self.template_selections:
+            self.template_selections[object_id] = []
+
+        if check_state == Qt.CheckState.Checked:
+            if template_info not in self.template_selections[object_id]:
+                self.template_selections[object_id].append(template_info)
+        else:
+            if template_info in self.template_selections[object_id]:
+                self.template_selections[object_id].remove(template_info)
+
     def _browse_output_dir(self):
         """Browse for output directory."""
+        # Start from the saved directory if available
+        start_dir = self.user_settings.output_directory or ""
+
         if sys.platform == "darwin":
             # Suppress macOS NSOpenPanel warning
             with suppress_stdout_stderr():
                 dir_path = QFileDialog.getExistingDirectory(
-                    self, "Select Output Directory", ""
+                    self, "Select Output Directory", start_dir
                 )
         else:
             dir_path = QFileDialog.getExistingDirectory(
-                self, "Select Output Directory", ""
+                self, "Select Output Directory", start_dir
             )
         
         if dir_path:
             self.output_dir_edit.setText(dir_path)
-    
+            # Save to user settings for next time
+            self.user_settings.output_directory = dir_path
+
+    def _load_default_output_directory(self):
+        """Load the default output directory from user settings."""
+        default_dir = self.user_settings.output_directory
+        if default_dir and os.path.exists(default_dir):
+            self.output_dir_edit.setText(default_dir)
+
     def _populate_trees(self):
         """Populate the tree widgets with project objects."""
         # Populate tables
@@ -621,13 +861,14 @@ class GenerateDialog(QDialog):
         self.progress_bar.setVisible(True)
         self.generate_btn.setEnabled(False)
         
-        # Create and start worker thread
+        # Create and start worker thread with template selections
         self.worker = SqlGeneratorWorker(
             self.project, 
             self.output_dir_edit.text(),
             self.selected_objects.copy(),
             single_file=self.single_file_checkbox.isChecked(),
-            single_filename=self.single_filename_edit.text().strip()
+            single_filename=self.single_filename_edit.text().strip(),
+            template_selections=self.template_selections.copy()
         )
         
         self.worker.progress_updated.connect(self.progress_bar.setValue)

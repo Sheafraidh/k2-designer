@@ -1,0 +1,39 @@
+{#
+name: Audit Trigger
+description: Creates an audit trigger that logs all changes to the table
+object_type: table
+#}
+-- Create audit trigger for {{ table.owner }}.{{ table.name }}
+CREATE OR REPLACE TRIGGER {{ table.owner }}.{{ table.name }}_AUDIT_TRG
+    BEFORE INSERT OR UPDATE OR DELETE ON {{ table.owner }}.{{ table.name }}
+    FOR EACH ROW
+DECLARE
+    v_operation VARCHAR2(10);
+BEGIN
+    IF INSERTING THEN
+        v_operation := 'INSERT';
+    ELSIF UPDATING THEN
+        v_operation := 'UPDATE';
+    ELSIF DELETING THEN
+        v_operation := 'DELETE';
+    END IF;
+
+    -- Insert audit record
+    INSERT INTO {{ table.owner }}.AUDIT_LOG (
+        TABLE_NAME,
+        OPERATION,
+        {%- for column in table.columns[:5] %}  -- First 5 columns only for example
+        OLD_{{ column.name }},
+        NEW_{{ column.name }}{% if not loop.last %},{% endif %}
+        {%- endfor %}
+    ) VALUES (
+        '{{ table.name }}',
+        v_operation,
+        {%- for column in table.columns[:5] %}
+        :OLD.{{ column.name }},
+        :NEW.{{ column.name }}{% if not loop.last %},{% endif %}
+        {%- endfor %}
+    );
+END;
+/
+

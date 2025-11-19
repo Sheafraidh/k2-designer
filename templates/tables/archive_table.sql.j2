@@ -1,0 +1,23 @@
+{#
+name: Archive Table
+description: Creates an archive table with the same structure plus archiving columns
+object_type: table
+#}
+-- Create archive table for {{ table.owner }}.{{ table.name }}
+CREATE TABLE {{ table.owner }}.{{ table.name }}_ARCHIVE (
+{%- for column in table.columns %}
+    {{ column.name }} {{ column.data_type }}{% if column.default %} DEFAULT {{ column.default }}{% endif %},
+{%- endfor %}
+    ARCHIVE_DATE DATE DEFAULT SYSDATE NOT NULL,
+    ARCHIVE_USER VARCHAR2(100) DEFAULT USER NOT NULL,
+    ARCHIVE_REASON VARCHAR2(500)
+){% if table.tablespace %} TABLESPACE {{ table.tablespace }}_ARCHIVE{% endif %};
+
+{%- if table.comment %}
+
+COMMENT ON TABLE {{ table.owner }}.{{ table.name }}_ARCHIVE IS 'Archive table for {{ table.comment }}';
+{%- endif %}
+
+-- Create index on archive date
+CREATE INDEX {{ table.name }}_ARCHIVE_DATE_IDX ON {{ table.owner }}.{{ table.name }}_ARCHIVE (ARCHIVE_DATE){% if table.tablespace %} TABLESPACE {{ table.tablespace }}_ARCHIVE{% endif %};
+

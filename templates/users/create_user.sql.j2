@@ -1,0 +1,30 @@
+{#
+name: Create User
+description: Standard CREATE USER statement with tablespace assignments
+object_type: user
+#}
+-- Create user {{ owner.name }}
+CREATE USER {{ owner.name }}
+    IDENTIFIED BY "change_me_{{ owner.name }}"
+{%- if owner.default_tablespace %}
+    DEFAULT TABLESPACE {{ owner.default_tablespace }}
+{%- endif %}
+{%- if owner.temp_tablespace %}
+    TEMPORARY TABLESPACE {{ owner.temp_tablespace }}
+{%- endif %}
+{%- if owner.default_index_tablespace %}
+    DEFAULT TABLESPACE {{ owner.default_index_tablespace }}
+{%- endif %}
+    QUOTA UNLIMITED ON {{ owner.default_tablespace or 'USERS' }};
+
+-- Grant privileges
+GRANT CONNECT, RESOURCE TO {{ owner.name }};
+{%- if owner.editionable %}
+GRANT CREATE ANY EDITION TO {{ owner.name }};
+{%- endif %}
+
+{%- if owner.comment %}
+
+COMMENT ON USER {{ owner.name }} IS '{{ owner.comment }}';
+{%- endif %}
+
