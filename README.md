@@ -2,6 +2,39 @@
 
 A modern Python Qt6 application for designing database schemas, creating ER diagrams, and generating SQL scripts. Features a rich visual interface with support for Oracle database modeling.
 
+---
+
+## 📜 License
+
+**Copyright (c) 2025 Karel Švejnoha. All rights reserved.**
+
+This project is **dual-licensed**:
+
+### 1. AGPL-3.0 (Open Source)
+✅ **Free for:**
+- Personal use, education, and research
+- Internal company use (non-commercial)
+- Open-source projects
+
+⚠️ **Requirements:**
+- Any modifications or derivative works must remain open-source under AGPL-3.0
+- Complete source code must be made publicly available
+- See [LICENSE](LICENSE) file for full terms
+
+### 2. Commercial License
+💼 **Required for:**
+- Closed-source products
+- Commercial distribution or resale
+- SaaS hosting/deployment
+- Proprietary systems
+- Use without releasing source code
+
+📧 **Contact for commercial licensing:** sheafraidh@gmail.com
+
+**Important:** You MAY use this internally at your company at no cost. You MAY NOT sell, sublicense, or redistribute it as a proprietary product without a commercial license agreement.
+
+---
+
 ## Features
 
 ### Core Functionality
