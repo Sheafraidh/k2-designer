@@ -1449,24 +1449,26 @@ class DiagramView(QWidget):
         zoom_in_icon = style.standardIcon(style.StandardPixmap.SP_ArrowUp)  # Will use text icon instead
         zoom_out_icon = style.standardIcon(style.StandardPixmap.SP_ArrowDown)  # Will use text icon instead
 
-        # Create buttons with icons and minimal text
+        # Create buttons with icons - matching table dialog style
         self.zoom_in_btn = QPushButton("+")
         self.zoom_in_btn.setToolTip("Zoom In")
+        self.zoom_in_btn.setFixedSize(28, 28)
+        self.zoom_in_btn.setStyleSheet("font-weight: bold; font-size: 16px;")
 
         self.zoom_out_btn = QPushButton("−")
         self.zoom_out_btn.setToolTip("Zoom Out")
+        self.zoom_out_btn.setFixedSize(28, 28)
+        self.zoom_out_btn.setStyleSheet("font-weight: bold; font-size: 16px;")
 
         self.fit_to_view_btn = QPushButton("⊡")
         self.fit_to_view_btn.setToolTip("Fit to View")
+        self.fit_to_view_btn.setFixedSize(28, 28)
+        self.fit_to_view_btn.setStyleSheet("font-size: 14px;")
 
         self.refresh_btn = QPushButton("⟳")
         self.refresh_btn.setToolTip("Refresh Diagram - Reload table structures")
-
-        # Make toolbar buttons compact and square
-        button_size = QSize(32, 32)  # Square, icon-like buttons
-        for btn in [self.zoom_in_btn, self.zoom_out_btn, self.fit_to_view_btn, self.refresh_btn]:
-            btn.setFixedSize(button_size)
-            btn.setFont(QFont("Arial", 14))  # Larger font for symbols
+        self.refresh_btn.setFixedSize(28, 28)
+        self.refresh_btn.setStyleSheet("font-size: 16px;")
 
         toolbar_layout.addWidget(self.zoom_in_btn)
         toolbar_layout.addWidget(self.zoom_out_btn)

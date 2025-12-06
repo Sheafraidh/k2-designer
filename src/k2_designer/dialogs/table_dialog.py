@@ -316,6 +316,47 @@ class TableDialog(QDialog):
         
         layout.addWidget(filter_group)
         
+        # Toolbar with small icon buttons between filter and grid
+        toolbar_layout = QHBoxLayout()
+        toolbar_layout.setContentsMargins(0, 3, 0, 3)
+        toolbar_layout.setSpacing(2)
+
+        # Create small icon-only buttons
+        self.add_column_btn = QPushButton("+")
+        self.add_column_btn.setToolTip("Add Column")
+        self.add_column_btn.setFixedSize(28, 28)
+        self.add_column_btn.setStyleSheet("font-weight: bold; font-size: 16px;")
+
+        self.edit_column_btn = QPushButton("✎")
+        self.edit_column_btn.setToolTip("Edit Column")
+        self.edit_column_btn.setFixedSize(28, 28)
+        self.edit_column_btn.setStyleSheet("font-size: 14px;")
+
+        self.remove_column_btn = QPushButton("✕")
+        self.remove_column_btn.setToolTip("Remove Columns")
+        self.remove_column_btn.setFixedSize(28, 28)
+        self.remove_column_btn.setStyleSheet("font-weight: bold; font-size: 14px; color: #c44;")
+
+        self.move_up_btn = QPushButton("↑")
+        self.move_up_btn.setToolTip("Move Up")
+        self.move_up_btn.setFixedSize(28, 28)
+        self.move_up_btn.setStyleSheet("font-weight: bold; font-size: 16px;")
+
+        self.move_down_btn = QPushButton("↓")
+        self.move_down_btn.setToolTip("Move Down")
+        self.move_down_btn.setFixedSize(28, 28)
+        self.move_down_btn.setStyleSheet("font-weight: bold; font-size: 16px;")
+
+        toolbar_layout.addWidget(self.add_column_btn)
+        toolbar_layout.addWidget(self.edit_column_btn)
+        toolbar_layout.addWidget(self.remove_column_btn)
+        toolbar_layout.addWidget(QLabel("|"))  # Separator
+        toolbar_layout.addWidget(self.move_up_btn)
+        toolbar_layout.addWidget(self.move_down_btn)
+        toolbar_layout.addStretch()
+
+        layout.addLayout(toolbar_layout)
+
         # Columns table
         self.columns_table = MultiSelectTableWidget()
         self.columns_table.set_parent_dialog(self)
@@ -352,27 +393,17 @@ class TableDialog(QDialog):
         
         layout.addWidget(self.columns_table)
         
-        # Column buttons
-        column_buttons = QHBoxLayout()
-        column_buttons.setContentsMargins(0, 5, 0, 0)  # Small margin only on top
-        column_buttons.setSpacing(5)  # Reduced spacing between buttons
-        self.add_column_btn = QPushButton("Add Column")
-        self.edit_column_btn = QPushButton("Edit Column")
-        self.remove_column_btn = QPushButton("Remove Columns")
-        self.import_csv_btn = QPushButton("Import from CSV...")
-        self.move_up_btn = QPushButton("Move Up ↑")
-        self.move_down_btn = QPushButton("Move Down ↓")
+        # Bottom button - only Import from CSV
+        bottom_layout = QHBoxLayout()
+        bottom_layout.setContentsMargins(0, 5, 0, 0)
+        bottom_layout.setSpacing(5)
 
-        column_buttons.addWidget(self.add_column_btn)
-        column_buttons.addWidget(self.edit_column_btn)
-        column_buttons.addWidget(self.remove_column_btn)
-        column_buttons.addWidget(self.import_csv_btn)
-        column_buttons.addWidget(self.move_up_btn)
-        column_buttons.addWidget(self.move_down_btn)
-        column_buttons.addStretch()
-        
-        layout.addLayout(column_buttons)
-    
+        self.import_csv_btn = QPushButton("Import from CSV...")
+        bottom_layout.addWidget(self.import_csv_btn)
+        bottom_layout.addStretch()
+
+        layout.addLayout(bottom_layout)
+
     def _setup_filter_domains(self):
         """Setup the domain filter combobox with available domains."""
         self.filter_domain.clear()
