@@ -4,6 +4,7 @@ Diagram model for ER diagrams.
 
 from typing import Dict, List, Optional
 from dataclasses import dataclass, field
+import uuid
 
 
 @dataclass
@@ -15,6 +16,7 @@ class DiagramItem:
     y: float
     width: Optional[float] = None
     height: Optional[float] = None
+    guid: str = field(default_factory=lambda: str(uuid.uuid4()))
 
 
 @dataclass
@@ -24,12 +26,13 @@ class DiagramConnection:
     target_table: str  # Full name of target table
     connection_type: str = 'manual'  # Type of connection (manual, fk, etc.)
     label: Optional[str] = None  # Optional label for the connection
+    guid: str = field(default_factory=lambda: str(uuid.uuid4()))
 
 
 class Diagram:
     """Represents an ER diagram."""
     
-    def __init__(self, name: str, description: str = ""):
+    def __init__(self, name: str, description: str = "", guid: Optional[str] = None):
         self.name = name
         self.description = description
         self.items: List[DiagramItem] = []
@@ -38,7 +41,8 @@ class Diagram:
         self.zoom_level = 1.0
         self.scroll_x = 0.0
         self.scroll_y = 0.0
-    
+        self.guid = guid or str(uuid.uuid4())
+
     def add_item(self, object_type: str, object_name: str, x: float, y: float, 
                  width: Optional[float] = None, height: Optional[float] = None):
         """Add an item to the diagram."""
@@ -107,6 +111,7 @@ class Diagram:
     def to_dict(self) -> dict:
         """Convert diagram to dictionary for serialization."""
         return {
+            'guid': self.guid,
             'name': self.name,
             'description': self.description,
             'is_active': self.is_active,
@@ -115,6 +120,7 @@ class Diagram:
             'scroll_y': self.scroll_y,
             'items': [
                 {
+                    'guid': item.guid,
                     'object_type': item.object_type,
                     'object_name': item.object_name,
                     'x': item.x,
@@ -122,46 +128,51 @@ class Diagram:
                     'width': item.width,
                     'height': item.height
                 }
-                for item in self.items
+                for item in sorted(self.items, key=lambda i: i.guid)
             ],
             'connections': [
                 {
+                    'guid': conn.guid,
                     'source_table': conn.source_table,
                     'target_table': conn.target_table,
                     'connection_type': conn.connection_type,
                     'label': conn.label
                 }
-                for conn in self.connections
+                for conn in sorted(self.connections, key=lambda c: c.guid)
             ]
         }
     
     @classmethod
     def from_dict(cls, data: dict) -> 'Diagram':
         """Create diagram from dictionary."""
-        diagram = cls(data['name'], data.get('description', ''))
+        diagram = cls(data['name'], data.get('description', ''), data.get('guid'))
         diagram.is_active = data.get('is_active', False)
         diagram.zoom_level = data.get('zoom_level', 1.0)
         diagram.scroll_x = data.get('scroll_x', 0.0)
         diagram.scroll_y = data.get('scroll_y', 0.0)
         
         for item_data in data.get('items', []):
-            diagram.add_item(
-                item_data['object_type'],
-                item_data['object_name'],
-                item_data['x'],
-                item_data['y'],
-                item_data.get('width'),
-                item_data.get('height')
+            item = DiagramItem(
+                object_type=item_data['object_type'],
+                object_name=item_data['object_name'],
+                x=item_data['x'],
+                y=item_data['y'],
+                width=item_data.get('width'),
+                height=item_data.get('height'),
+                guid=item_data.get('guid', str(uuid.uuid4()))
             )
-        
+            diagram.items.append(item)
+
         for conn_data in data.get('connections', []):
-            diagram.add_connection(
-                conn_data['source_table'],
-                conn_data['target_table'],
-                conn_data.get('connection_type', 'manual'),
-                conn_data.get('label')
+            conn = DiagramConnection(
+                source_table=conn_data['source_table'],
+                target_table=conn_data['target_table'],
+                connection_type=conn_data.get('connection_type', 'manual'),
+                label=conn_data.get('label'),
+                guid=conn_data.get('guid', str(uuid.uuid4()))
             )
-        
+            diagram.connections.append(conn)
+
         return diagram
     
     @property

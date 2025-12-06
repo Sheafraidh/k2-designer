@@ -5,6 +5,7 @@ Base classes and enums for the DB Designer data model.
 from enum import Enum
 from typing import Optional, List
 from abc import ABC, abstractmethod
+import uuid
 
 
 class StereotypeType(Enum):
@@ -17,12 +18,13 @@ class Stereotype:
     """Custom stereotype definition."""
     
     def __init__(self, name: str, stereotype_type: StereotypeType, 
-                 description: Optional[str] = None, background_color: Optional[str] = None):
+                 description: Optional[str] = None, background_color: Optional[str] = None, guid: Optional[str] = None):
         self.name = name
         self.stereotype_type = stereotype_type
         self.description = description
         self.background_color = background_color or self._get_default_color()
-    
+        self.guid = guid or str(uuid.uuid4())
+
     def _get_default_color(self) -> str:
         """Get default color for stereotype type."""
         if self.stereotype_type == StereotypeType.TABLE:
@@ -32,6 +34,7 @@ class Stereotype:
     
     def to_dict(self) -> dict:
         return {
+            'guid': self.guid,
             'name': self.name,
             'stereotype_type': self.stereotype_type.value,
             'description': self.description,
@@ -44,7 +47,8 @@ class Stereotype:
             name=data['name'],
             stereotype_type=StereotypeType(data['stereotype_type']),
             description=data.get('description'),
-            background_color=data.get('background_color')
+            background_color=data.get('background_color'),
+            guid=data.get('guid')
         )
 
 
@@ -64,10 +68,11 @@ class PartitionType(Enum):
 class DatabaseObject(ABC):
     """Base class for all database objects."""
     
-    def __init__(self, name: str, comment: Optional[str] = None):
+    def __init__(self, name: str, comment: Optional[str] = None, guid: Optional[str] = None):
         self.name = name
         self.comment = comment
-    
+        self.guid = guid or str(uuid.uuid4())
+
     @abstractmethod
     def to_dict(self) -> dict:
         """Serialize object to dictionary."""
@@ -85,7 +90,7 @@ class Column:
     
     def __init__(self, name: str, data_type: str, nullable: bool = True, 
                  comment: Optional[str] = None, default: Optional[str] = None,
-                 domain: Optional[str] = None, stereotype: Optional[str] = None):
+                 domain: Optional[str] = None, stereotype: Optional[str] = None, guid: Optional[str] = None):
         self.name = name
         self.data_type = data_type
         self.nullable = nullable
@@ -93,9 +98,11 @@ class Column:
         self.default = default
         self.domain = domain
         self.stereotype = stereotype  # Reference to stereotype name
-    
+        self.guid = guid or str(uuid.uuid4())
+
     def to_dict(self) -> dict:
         return {
+            'guid': self.guid,
             'name': self.name,
             'data_type': self.data_type,
             'nullable': self.nullable,
@@ -114,19 +121,22 @@ class Column:
             comment=data.get('comment'),
             default=data.get('default'),
             domain=data.get('domain'),
-            stereotype=data.get('stereotype')
+            stereotype=data.get('stereotype'),
+            guid=data.get('guid')
         )
 
 
 class Key:
     """Database key definition."""
     
-    def __init__(self, name: str, columns: List[str]):
+    def __init__(self, name: str, columns: List[str], guid: Optional[str] = None):
         self.name = name
         self.columns = columns
-    
+        self.guid = guid or str(uuid.uuid4())
+
     def to_dict(self) -> dict:
         return {
+            'guid': self.guid,
             'name': self.name,
             'columns': self.columns
         }
@@ -135,20 +145,23 @@ class Key:
     def from_dict(cls, data: dict):
         return cls(
             name=data['name'],
-            columns=data['columns']
+            columns=data['columns'],
+            guid=data.get('guid')
         )
 
 
 class Index:
     """Database index definition."""
     
-    def __init__(self, name: str, columns: List[str], tablespace: Optional[str] = None):
+    def __init__(self, name: str, columns: List[str], tablespace: Optional[str] = None, guid: Optional[str] = None):
         self.name = name
         self.columns = columns
         self.tablespace = tablespace
-    
+        self.guid = guid or str(uuid.uuid4())
+
     def to_dict(self) -> dict:
         return {
+            'guid': self.guid,
             'name': self.name,
             'columns': self.columns,
             'tablespace': self.tablespace
@@ -159,7 +172,8 @@ class Index:
         return cls(
             name=data['name'],
             columns=data['columns'],
-            tablespace=data.get('tablespace')
+            tablespace=data.get('tablespace'),
+            guid=data.get('guid')
         )
 
 

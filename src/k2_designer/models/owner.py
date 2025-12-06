@@ -12,8 +12,8 @@ class Owner(DatabaseObject):
     def __init__(self, name: str, default_tablespace: Optional[str] = None,
                  temp_tablespace: Optional[str] = None, 
                  default_index_tablespace: Optional[str] = None,
-                 editionable: bool = False, comment: Optional[str] = None):
-        super().__init__(name, comment)
+                 editionable: bool = False, comment: Optional[str] = None, guid: Optional[str] = None):
+        super().__init__(name, comment, guid)
         self.default_tablespace = default_tablespace
         self.temp_tablespace = temp_tablespace
         self.default_index_tablespace = default_index_tablespace
@@ -21,6 +21,7 @@ class Owner(DatabaseObject):
     
     def to_dict(self) -> dict:
         return {
+            'guid': self.guid,
             'name': self.name,
             'default_tablespace': self.default_tablespace,
             'temp_tablespace': self.temp_tablespace,
@@ -37,7 +38,8 @@ class Owner(DatabaseObject):
             temp_tablespace=data.get('temp_tablespace'),
             default_index_tablespace=data.get('default_index_tablespace'),
             editionable=data.get('editionable', False),
-            comment=data.get('comment')
+            comment=data.get('comment'),
+            guid=data.get('guid')
         )
     
     def __str__(self) -> str:

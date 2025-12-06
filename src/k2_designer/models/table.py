@@ -12,8 +12,8 @@ class Table(DatabaseObject):
     def __init__(self, name: str, owner: str, tablespace: Optional[str] = None,
                  stereotype: Optional[str] = None, color: Optional[str] = None,
                  domain: Optional[str] = None, editionable: bool = False,
-                 comment: Optional[str] = None):
-        super().__init__(name, comment)
+                 comment: Optional[str] = None, guid: Optional[str] = None):
+        super().__init__(name, comment, guid)
         self.owner = owner
         self.tablespace = tablespace
         self.stereotype = stereotype  # Reference to stereotype name
@@ -94,6 +94,7 @@ class Table(DatabaseObject):
     
     def to_dict(self) -> dict:
         return {
+            'guid': self.guid,
             'name': self.name,
             'owner': self.owner,
             'tablespace': self.tablespace,
@@ -102,9 +103,9 @@ class Table(DatabaseObject):
             'domain': self.domain,
             'editionable': self.editionable,
             'comment': self.comment,
-            'columns': [col.to_dict() for col in self.columns],
-            'keys': [key.to_dict() for key in self.keys],
-            'indexes': [idx.to_dict() for idx in self.indexes],
+            'columns': [col.to_dict() for col in sorted(self.columns, key=lambda x: x.guid)],
+            'keys': [key.to_dict() for key in sorted(self.keys, key=lambda x: x.guid)],
+            'indexes': [idx.to_dict() for idx in sorted(self.indexes, key=lambda x: x.guid)],
             'partitioning': self.partitioning.to_dict() if self.partitioning else None
         }
     
@@ -118,7 +119,8 @@ class Table(DatabaseObject):
             color=data.get('color'),
             domain=data.get('domain'),
             editionable=data.get('editionable', False),
-            comment=data.get('comment')
+            comment=data.get('comment'),
+            guid=data.get('guid')
         )
         
         # Load columns

@@ -8,11 +8,11 @@ A modern Python Qt6 application for designing database schemas, creating ER diag
 - **Tabbed Diagram Interface**: Multiple diagrams in tabs with close buttons and keyboard navigation (Ctrl+Tab)
 - **Object Browser**: Hierarchical tree view for managing all database objects (owners, tables, sequences, domains, stereotypes)
 - **Visual ER Diagrams**: Interactive diagrams with drag-and-drop tables, foreign key connections, and visual relationships
-- **Project Management**: Save/load projects using SQLite (.k2p) storage with full data persistence
+- **Project Management**: Save/load projects using JSON (.k2p) storage with full data persistence and human-readable format
 - **SQL Generation**: Jinja2-based templates for generating CREATE scripts (tables, sequences, users)
 
 ### Advanced Features
-- **JSON Export/Import**: Export projects to JSON format for version control, sharing, and backup
+- **Object GUIDs**: Every object has a unique GUID for consistent JSON ordering and better git diffs (renames are trackable)
 - **Stereotypes**: Define and manage table/column stereotypes with custom colors for visual categorization
 - **Domains**: Reusable data type definitions that can be applied to columns
 - **Multiple Selection**: Select and manipulate multiple objects simultaneously in diagrams
@@ -74,7 +74,7 @@ A modern Python Qt6 application for designing database schemas, creating ER diag
 - **ConnectionItem**: Visual lines representing foreign key relationships
 
 ### Controllers
-- **ProjectManager**: Handles SQLite persistence and JSON export/import operations
+- **ProjectManager**: Handles JSON-based project persistence and file operations
 - **UserSettingsManager**: Manages user-specific preferences (theme, directories, author)
 
 ### Dialogs
@@ -257,7 +257,20 @@ The application is designed for easy extension:
 - **PyQt6**: Modern Qt6 bindings for Python (UI framework)
 - **oracledb**: Oracle database connectivity (optional)
 - **jinja2**: Template engine for SQL generation
-- **sqlite3**: Built-in Python SQLite support (project storage)
+
+### Project Storage
+Projects are stored in JSON format with the `.k2p` extension. This human-readable format is:
+- **Version Control Friendly**: Easy to diff and merge in Git
+- **Portable**: Works across different systems and Python versions
+- **Future-Proof**: No dependency on SQLite library versions
+- **Readable**: Can be inspected and edited in any text editor
+
+To migrate old SQLite `.k2p` files to JSON format, use the included migration script:
+```bash
+python migrate_sqlite_to_json.py old_project.k2p new_project.k2p
+# Or migrate all .k2p files in current directory:
+python migrate_sqlite_to_json.py --all
+```
 
 ## Future Enhancements
 

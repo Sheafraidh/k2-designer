@@ -12,8 +12,8 @@ class Sequence(DatabaseObject):
     def __init__(self, name: str, owner: str, start_with: int = 1, 
                  increment_by: int = 1, min_value: Optional[int] = None,
                  max_value: Optional[int] = None, cache_size: int = 20,
-                 cycle: bool = False, comment: Optional[str] = None):
-        super().__init__(name, comment)
+                 cycle: bool = False, comment: Optional[str] = None, guid: Optional[str] = None):
+        super().__init__(name, comment, guid)
         self.owner = owner
         self.start_with = start_with
         self.increment_by = increment_by
@@ -36,6 +36,7 @@ class Sequence(DatabaseObject):
     
     def to_dict(self) -> dict:
         return {
+            'guid': self.guid,
             'name': self.name,
             'owner': self.owner,
             'start_with': self.start_with,
@@ -58,7 +59,8 @@ class Sequence(DatabaseObject):
             max_value=data.get('max_value'),
             cache_size=data.get('cache_size', 20),
             cycle=data.get('cycle', False),
-            comment=data.get('comment')
+            comment=data.get('comment'),
+            guid=data.get('guid')
         )
     
     def __str__(self) -> str:
