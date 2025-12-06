@@ -341,11 +341,15 @@ class TableDialog(QDialog):
         self.edit_column_btn = QPushButton("Edit Column")
         self.remove_column_btn = QPushButton("Remove Columns")
         self.import_csv_btn = QPushButton("Import from CSV...")
+        self.move_up_btn = QPushButton("Move Up ↑")
+        self.move_down_btn = QPushButton("Move Down ↓")
 
         column_buttons.addWidget(self.add_column_btn)
         column_buttons.addWidget(self.edit_column_btn)
         column_buttons.addWidget(self.remove_column_btn)
         column_buttons.addWidget(self.import_csv_btn)
+        column_buttons.addWidget(self.move_up_btn)
+        column_buttons.addWidget(self.move_down_btn)
         column_buttons.addStretch()
         
         layout.addLayout(column_buttons)
@@ -680,6 +684,8 @@ class TableDialog(QDialog):
         self.edit_column_btn.clicked.connect(self._edit_column)
         self.remove_column_btn.clicked.connect(self._remove_column)
         self.import_csv_btn.clicked.connect(self._import_from_csv)
+        self.move_up_btn.clicked.connect(self._move_row_up)
+        self.move_down_btn.clicked.connect(self._move_row_down)
 
         # Connect table item changes for multi-select updates
         self.columns_table.itemChanged.connect(self._on_item_changed)
@@ -807,6 +813,218 @@ class TableDialog(QDialog):
                     "Import Successful",
                     f"Successfully imported {len(columns)} columns."
                 )
+
+    def _move_row_up(self):
+        """Move the selected row(s) up."""
+        # Get selected rows
+        selected_rows = sorted(set(item.row() for item in self.columns_table.selectedItems()))
+
+        if not selected_rows:
+            # No selection, try current row
+            current_row = self.columns_table.currentRow()
+            if current_row >= 0:
+                selected_rows = [current_row]
+
+        if not selected_rows:
+            return
+
+        # Can't move up if first row is selected
+        if selected_rows[0] == 0:
+            return
+
+        # Block signals during the move to prevent flickering
+        self.columns_table.blockSignals(True)
+
+        try:
+            # Check if rows are contiguous
+            is_contiguous = all(selected_rows[i] + 1 == selected_rows[i + 1]
+                               for i in range(len(selected_rows) - 1))
+
+            if is_contiguous:
+                # Move contiguous block up by swapping with the row above the block
+                first_row = selected_rows[0]
+                self._swap_rows(first_row - 1, first_row)
+
+                # If there are more rows in the block, move them up too
+                for i in range(1, len(selected_rows)):
+                    self._swap_rows(selected_rows[i] - 1, selected_rows[i])
+
+                moved_rows = [row - 1 for row in selected_rows]
+            else:
+                # For non-contiguous selection, move each row individually
+                moved_rows = []
+                for row in selected_rows:
+                    if row > 0:
+                        self._swap_rows(row, row - 1)
+                        moved_rows.append(row - 1)
+
+            # Clear and restore selection efficiently
+            self.columns_table.clearSelection()
+
+            # Select all moved rows - use item selection to maintain multi-selection
+            for row in moved_rows:
+                for col in range(self.columns_table.columnCount()):
+                    item = self.columns_table.item(row, col)
+                    if item:
+                        item.setSelected(True)
+
+            # Set current cell to first moved row
+            if moved_rows:
+                self.columns_table.setCurrentCell(moved_rows[0], self.columns_table.currentColumn())
+
+        finally:
+            # Unblock signals
+            self.columns_table.blockSignals(False)
+
+    def _move_row_down(self):
+        """Move the selected row(s) down."""
+        # Get selected rows
+        selected_rows = sorted(set(item.row() for item in self.columns_table.selectedItems()), reverse=True)
+
+        if not selected_rows:
+            # No selection, try current row
+            current_row = self.columns_table.currentRow()
+            if current_row >= 0:
+                selected_rows = [current_row]
+
+        if not selected_rows:
+            return
+
+        # Can't move down if last row is selected
+        if selected_rows[0] >= self.columns_table.rowCount() - 1:
+            return
+
+        # Block signals during the move to prevent flickering
+        self.columns_table.blockSignals(True)
+
+        try:
+            # Check if rows are contiguous (remember list is reversed)
+            forward_rows = sorted(selected_rows)
+            is_contiguous = all(forward_rows[i] + 1 == forward_rows[i + 1]
+                               for i in range(len(forward_rows) - 1))
+
+            if is_contiguous:
+                # Move contiguous block down by swapping with the row below the block
+                # Process in reverse order to avoid index issues
+                last_row = selected_rows[0]  # This is the highest row (list is reversed)
+                self._swap_rows(last_row, last_row + 1)
+
+                # If there are more rows in the block, move them down too
+                for i in range(1, len(selected_rows)):
+                    self._swap_rows(selected_rows[i], selected_rows[i] + 1)
+
+                moved_rows = [row + 1 for row in forward_rows]
+            else:
+                # For non-contiguous selection, move each row individually (already in reverse order)
+                moved_rows = []
+                for row in selected_rows:
+                    if row < self.columns_table.rowCount() - 1:
+                        self._swap_rows(row, row + 1)
+                        moved_rows.append(row + 1)
+
+            # Clear and restore selection efficiently
+            self.columns_table.clearSelection()
+
+            # Select all moved rows - use item selection to maintain multi-selection
+            for row in sorted(moved_rows):
+                for col in range(self.columns_table.columnCount()):
+                    item = self.columns_table.item(row, col)
+                    if item:
+                        item.setSelected(True)
+
+            # Set current cell to first moved row
+            if moved_rows:
+                self.columns_table.setCurrentCell(sorted(moved_rows)[0], self.columns_table.currentColumn())
+
+        finally:
+            # Unblock signals
+            self.columns_table.blockSignals(False)
+
+    def _swap_rows(self, row1, row2):
+        """Swap two rows in the columns table."""
+        # Temporarily disconnect itemChanged signal to avoid triggering updates
+        self.columns_table.itemChanged.disconnect(self._on_item_changed)
+
+        try:
+            # First, extract all data from both rows
+            row1_data = self._extract_row_data(row1)
+            row2_data = self._extract_row_data(row2)
+
+            # Then, set the data to swapped positions
+            self._set_row_data(row1, row2_data)
+            self._set_row_data(row2, row1_data)
+
+        finally:
+            # Reconnect the signal
+            self.columns_table.itemChanged.connect(self._on_item_changed)
+
+    def _extract_row_data(self, row):
+        """Extract all data from a row including widgets."""
+        data = {}
+
+        # Extract regular items (0=Name, 1=DataType, 3=Default, 4=Comment)
+        data['name'] = self.columns_table.item(row, 0).text() if self.columns_table.item(row, 0) else ""
+        data['data_type'] = self.columns_table.item(row, 1).text() if self.columns_table.item(row, 1) else ""
+        data['default'] = self.columns_table.item(row, 3).text() if self.columns_table.item(row, 3) else ""
+        data['comment'] = self.columns_table.item(row, 4).text() if self.columns_table.item(row, 4) else ""
+
+        # Extract data type editability (for domain-controlled fields)
+        data_type_item = self.columns_table.item(row, 1)
+        if data_type_item:
+            data['data_type_editable'] = bool(data_type_item.flags() & Qt.ItemFlag.ItemIsEditable)
+        else:
+            data['data_type_editable'] = True
+
+        # Extract nullable checkbox state (column 2)
+        nullable_widget = self.columns_table.cellWidget(row, 2)
+        if nullable_widget and hasattr(nullable_widget, 'checkbox'):
+            data['nullable'] = nullable_widget.checkbox.isChecked()
+        else:
+            data['nullable'] = True
+
+        # Extract domain selection (column 5)
+        domain_combo = self.columns_table.cellWidget(row, 5)
+        if domain_combo and isinstance(domain_combo, QComboBox):
+            data['domain'] = domain_combo.currentData() or ""
+        else:
+            data['domain'] = ""
+
+        # Extract stereotype selection (column 6)
+        stereotype_combo = self.columns_table.cellWidget(row, 6)
+        if stereotype_combo and isinstance(stereotype_combo, QComboBox):
+            data['stereotype'] = stereotype_combo.currentData() or ""
+        else:
+            data['stereotype'] = ""
+
+        return data
+
+    def _set_row_data(self, row, data):
+        """Set all data for a row including recreating widgets."""
+        # Set regular items
+        self.columns_table.setItem(row, 0, QTableWidgetItem(data['name']))
+
+        data_type_item = QTableWidgetItem(data['data_type'])
+        self.columns_table.setItem(row, 1, data_type_item)
+
+        # Set data type editability
+        if data['data_type_editable']:
+            data_type_item.setFlags(data_type_item.flags() | Qt.ItemFlag.ItemIsEditable)
+            data_type_item.setData(Qt.ItemDataRole.ForegroundRole, None)
+        else:
+            data_type_item.setFlags(data_type_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            data_type_item.setForeground(QColor(128, 128, 128))
+
+        self.columns_table.setItem(row, 3, QTableWidgetItem(data['default']))
+        self.columns_table.setItem(row, 4, QTableWidgetItem(data['comment']))
+
+        # Recreate nullable checkbox (column 2)
+        self._setup_nullable_cell(row, data['nullable'])
+
+        # Recreate domain combobox (column 5)
+        self._setup_domain_cell(row, data['domain'])
+
+        # Recreate stereotype combobox (column 6)
+        self._setup_stereotype_cell(row, data['stereotype'])
 
     def _add_imported_column(self, col_data):
         """Add an imported column to the table."""
@@ -1340,3 +1558,4 @@ class TableDialog(QDialog):
     def get_table(self) -> Table:
         """Get the table object."""
         return self.table
+
