@@ -127,16 +127,31 @@ def main():
     app.setApplicationVersion("1.0.0")
     app.setOrganizationName("K2 Designer Team")
     
+    # Set application icon
+    from PyQt6.QtGui import QIcon
+    icon_path = os.path.join(os.path.dirname(__file__), 'src', 'k2_designer', 'resources', 'k2_icon.png')
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
+
     # Enable high DPI scaling
     if hasattr(Qt, 'AA_EnableHighDpiScaling'):
         app.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
     if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
         app.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
     
+    # Show splash screen
+    from src.k2_designer.dialogs.about_dialog import SplashScreen
+    splash = SplashScreen()
+    splash.show()
+    app.processEvents()  # Process events to ensure splash is shown
+
     # Create and show the main window
     main_window = MainWindow()
     main_window.show()
     
+    # Close splash screen (will wait for minimum display time)
+    splash.finish()
+
     # Start the event loop
     sys.exit(app.exec())
 

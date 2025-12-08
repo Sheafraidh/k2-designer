@@ -1279,13 +1279,13 @@ class DiagramGraphicsView(QGraphicsView):
         # Panning state variables
         self._is_panning = False
         self._last_pan_point = None
-    
+
     def dragEnterEvent(self, event):
         """Handle drag enter event."""
         # Accept drag if it contains table or sequence data
         mime_data = event.mimeData()
         if (mime_data.hasFormat("application/x-db-table") or 
-            mime_data.hasFormat("application/x-db-sequence") or
+            mime_data.hasFormat("git application/x-db-sequence") or
             mime_data.hasText()):
             event.acceptProposedAction()
         else:
@@ -1327,45 +1327,58 @@ class DiagramGraphicsView(QGraphicsView):
             event.ignore()
     
     def mousePressEvent(self, event):
-        """Handle mouse press events for canvas panning."""
+        """Handle mouse press events for canvas panning.
+
+        Start panning on right-button press over empty space BEFORE calling the base
+        implementation so panning is not blocked by the scene/view accepting the event.
+        """
         from PyQt6.QtCore import Qt
         
-        # Always let the scene handle events first
-        super().mousePressEvent(event)
-        
-        # Only handle panning if the scene didn't handle the event
-        if not event.isAccepted() and event.button() == Qt.MouseButton.RightButton:
-            # Check if we're clicking on empty space (not on an item)
+        # Handle right-button panning first
+        if event.button() == Qt.MouseButton.RightButton:
+            # Map to scene coordinates and check if there's an item under cursor
             scene_pos = self.mapToScene(event.position().toPoint())
             item_at_pos = self.scene().itemAt(scene_pos, self.transform())
             
             if item_at_pos is None:
                 # Start panning - no item under cursor
                 self._is_panning = True
+                # Use integer points for consistent delta computations
                 self._last_pan_point = event.position().toPoint()
-                self.setCursor(Qt.CursorShape.ClosedHandCursor)
+                # Don't show cursor yet - wait until we actually start dragging
                 event.accept()
-    
+                return
+
+        # Otherwise, let the scene/view handle the event (selection, dragging items...)
+        super().mousePressEvent(event)
+
     def mouseMoveEvent(self, event):
         """Handle mouse move events for canvas panning."""
+        # If we are panning, consume the event and update scrollbars
         if self._is_panning and self._last_pan_point is not None:
-            # Calculate the movement delta
-            delta = event.position().toPoint() - self._last_pan_point
-            self._last_pan_point = event.position().toPoint()
-            
+            # Show open hand cursor only when actually dragging
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+
+            # Calculate the movement delta (current - last)
+            current_point = event.position().toPoint()
+            delta = current_point - self._last_pan_point
+            # Update last pan point
+            self._last_pan_point = current_point
+
             # Get current scroll bar values
             h_scroll = self.horizontalScrollBar()
             v_scroll = self.verticalScrollBar()
             
-            # Update scroll positions (negative delta for natural scrolling feel)
+            # Update scroll positions (negative delta for natural panning)
             h_scroll.setValue(h_scroll.value() - delta.x())
             v_scroll.setValue(v_scroll.value() - delta.y())
             
             event.accept()
-        else:
-            # Let the base class handle other events
-            super().mouseMoveEvent(event)
-    
+            return
+
+        # Not panning: fallback to base behavior
+        super().mouseMoveEvent(event)
+
     def mouseReleaseEvent(self, event):
         """Handle mouse release events for canvas panning."""
         from PyQt6.QtCore import Qt
@@ -1593,8 +1606,9 @@ class DiagramView(QWidget):
 
         # Restore scroll position (need to do this after the scene is fully loaded)
         # Use QTimer to ensure the scene is rendered before setting scroll position
+        # Increase delay to 100ms to ensure scene has fully calculated its bounds
         from PyQt6.QtCore import QTimer
-        QTimer.singleShot(10, self._apply_scroll_position)
+        QTimer.singleShot(100, self._apply_scroll_position)
 
     def _apply_scroll_position(self):
         """Apply the saved scroll position (called after a short delay)."""
@@ -1604,7 +1618,8 @@ class DiagramView(QWidget):
         horizontal_scrollbar = self.graphics_view.horizontalScrollBar()
         vertical_scrollbar = self.graphics_view.verticalScrollBar()
 
-        if horizontal_scrollbar and self.diagram.scroll_x != 0.0:
+        # Apply scroll position if saved values exist
+        if horizontal_scrollbar and hasattr(self.diagram, 'scroll_x'):
             horizontal_scrollbar.setValue(int(self.diagram.scroll_x))
-        if vertical_scrollbar and self.diagram.scroll_y != 0.0:
+        if vertical_scrollbar and hasattr(self.diagram, 'scroll_y'):
             vertical_scrollbar.setValue(int(self.diagram.scroll_y))

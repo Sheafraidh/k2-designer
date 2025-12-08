@@ -65,6 +65,13 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("K2 Designer")
         self.setMinimumSize(1200, 800)
         
+        # Set window icon
+        from PyQt6.QtGui import QIcon
+        import os
+        icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'resources', 'k2_icon.png')
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
         # Central widget with tab widget for diagrams
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabsClosable(True)
@@ -767,12 +774,10 @@ class MainWindow(QMainWindow):
 
     def _about(self):
         """Show about dialog."""
-        QMessageBox.about(
-            self, "About K2 Designer",
-            "K2 Designer v1.0.0\n\n"
-            "A visual database design tool for creating ER diagrams and managing database schemas."
-        )
-    
+        from ..dialogs.about_dialog import AboutDialog
+        dialog = AboutDialog(self)
+        dialog.exec()
+
     def closeEvent(self, event):
         """Handle application close event."""
         if self._check_unsaved_changes():
