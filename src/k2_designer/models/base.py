@@ -148,16 +148,35 @@ class Column:
 class Key:
     """Database key definition."""
     
-    def __init__(self, name: str, columns: List[str], guid: Optional[str] = None):
+    # Key types
+    PRIMARY = "PRIMARY"
+    FOREIGN = "FOREIGN"
+    UNIQUE = "UNIQUE"
+
+    def __init__(self, name: str, columns: List[str], key_type: str = UNIQUE,
+                 referenced_table: Optional[str] = None, referenced_columns: Optional[List[str]] = None,
+                 on_delete: Optional[str] = None, on_update: Optional[str] = None,
+                 guid: Optional[str] = None):
         self.name = name
         self.columns = columns
+        self.key_type = key_type  # PRIMARY, FOREIGN, or UNIQUE
+        # Foreign key specific attributes
+        self.referenced_table = referenced_table
+        self.referenced_columns = referenced_columns or []
+        self.on_delete = on_delete  # CASCADE, SET NULL, NO ACTION, etc.
+        self.on_update = on_update  # CASCADE, SET NULL, NO ACTION, etc.
         self.guid = guid or str(uuid.uuid4())
 
     def to_dict(self) -> dict:
         return {
             'guid': self.guid,
             'name': self.name,
-            'columns': self.columns
+            'columns': self.columns,
+            'key_type': self.key_type,
+            'referenced_table': self.referenced_table,
+            'referenced_columns': self.referenced_columns,
+            'on_delete': self.on_delete,
+            'on_update': self.on_update
         }
     
     @classmethod
@@ -165,6 +184,11 @@ class Key:
         return cls(
             name=data['name'],
             columns=data['columns'],
+            key_type=data.get('key_type', cls.UNIQUE),
+            referenced_table=data.get('referenced_table'),
+            referenced_columns=data.get('referenced_columns', []),
+            on_delete=data.get('on_delete'),
+            on_update=data.get('on_update'),
             guid=data.get('guid')
         )
 

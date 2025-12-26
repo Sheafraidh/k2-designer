@@ -116,6 +116,11 @@ class TableDialog(QDialog):
         self._setup_columns_tab(columns_tab)
         self.tab_widget.addTab(columns_tab, "Columns")
         
+        # Keys tab
+        keys_tab = QWidget()
+        self._setup_keys_tab(keys_tab)
+        self.tab_widget.addTab(keys_tab, "Keys")
+
         layout.addWidget(self.tab_widget)
         
         # Move tips to the bottom
@@ -404,6 +409,70 @@ class TableDialog(QDialog):
 
         layout.addLayout(bottom_layout)
 
+    def _setup_keys_tab(self, tab_widget):
+        """Setup the keys tab with editable grid."""
+        layout = QVBoxLayout(tab_widget)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(5)
+
+        # Toolbar with buttons
+        toolbar_layout = QHBoxLayout()
+        toolbar_layout.setContentsMargins(0, 3, 0, 3)
+        toolbar_layout.setSpacing(2)
+
+        # Create small icon-only buttons
+        self.add_key_btn = QPushButton("+")
+        self.add_key_btn.setToolTip("Add Key")
+        self.add_key_btn.setFixedSize(28, 28)
+        self.add_key_btn.setStyleSheet("font-weight: bold; font-size: 16px;")
+
+        self.remove_key_btn = QPushButton("✕")
+        self.remove_key_btn.setToolTip("Remove Keys")
+        self.remove_key_btn.setFixedSize(28, 28)
+        self.remove_key_btn.setStyleSheet("font-weight: bold; font-size: 14px; color: #c44;")
+
+        toolbar_layout.addWidget(self.add_key_btn)
+        toolbar_layout.addWidget(self.remove_key_btn)
+        toolbar_layout.addStretch()
+
+        layout.addLayout(toolbar_layout)
+
+        # Keys table with editable cells
+        self.keys_table = QTableWidget()
+        self.keys_table.setColumnCount(6)
+        self.keys_table.setHorizontalHeaderLabels([
+            "Name", "Type", "Columns", "Referenced Table", "Referenced Columns", "On Delete"
+        ])
+
+        self.keys_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.keys_table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
+
+        # Set up column sizing
+        header = self.keys_table.horizontalHeader()
+        header.setStretchLastSection(False)
+
+        self.keys_table.setColumnWidth(0, 150)  # Name
+        self.keys_table.setColumnWidth(1, 120)  # Type
+        self.keys_table.setColumnWidth(2, 200)  # Columns
+        self.keys_table.setColumnWidth(3, 150)  # Referenced Table
+        self.keys_table.setColumnWidth(4, 150)  # Referenced Columns
+        self.keys_table.setColumnWidth(5, 120)  # On Delete
+
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
+
+        layout.addWidget(self.keys_table)
+
+        # Info label
+        info_label = QLabel("Tips: • Type: PRIMARY, FOREIGN, or UNIQUE • Columns: comma-separated list • For Foreign Keys: specify Referenced Table and Columns")
+        info_label.setStyleSheet("color: #666; font-style: italic; font-size: 11px;")
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
     def _setup_filter_domains(self):
         """Setup the domain filter combobox with available domains."""
         self.filter_domain.clear()
@@ -554,6 +623,9 @@ class TableDialog(QDialog):
             # Load columns
             self._load_columns()
             
+            # Load keys
+            self._load_keys()
+
             # Setup filter domains
             self._setup_filter_domains()
             
@@ -599,6 +671,133 @@ class TableDialog(QDialog):
             # Stereotype column with combobox
             self._setup_stereotype_cell(row, column.stereotype or "")
     
+    def _load_keys(self):
+        """Load keys into the keys table."""
+        if not self.table:
+            return
+
+        self.keys_table.setRowCount(len(self.table.keys))
+
+        for row, key in enumerate(self.table.keys):
+            self._setup_key_row(row, key)
+
+    def _setup_key_row(self, row, key=None):
+        """Setup a key row with editable cells and comboboxes."""
+        from ..models.base import Key
+
+        # Name - editable
+        name = key.name if key else ""
+        self.keys_table.setItem(row, 0, QTableWidgetItem(name))
+
+        # Type - combobox
+        type_combo = QComboBox()
+        type_combo.addItem("PRIMARY", Key.PRIMARY)
+        type_combo.addItem("FOREIGN", Key.FOREIGN)
+        type_combo.addItem("UNIQUE", Key.UNIQUE)
+        if key:
+            index = type_combo.findData(key.key_type)
+            if index >= 0:
+                type_combo.setCurrentIndex(index)
+        self.keys_table.setCellWidget(row, 1, type_combo)
+
+        # Columns - editable
+        columns_str = ", ".join(key.columns) if key and key.columns else ""
+        self.keys_table.setItem(row, 2, QTableWidgetItem(columns_str))
+
+        # Referenced Table - editable
+        ref_table = key.referenced_table if key and key.referenced_table else ""
+        self.keys_table.setItem(row, 3, QTableWidgetItem(ref_table))
+
+        # Referenced Columns - editable
+        ref_columns = ", ".join(key.referenced_columns) if key and key.referenced_columns else ""
+        self.keys_table.setItem(row, 4, QTableWidgetItem(ref_columns))
+
+        # On Delete - combobox
+        on_delete_combo = QComboBox()
+        on_delete_combo.addItem("", "")
+        on_delete_combo.addItems(["CASCADE", "SET NULL", "NO ACTION", "RESTRICT"])
+        if key and key.on_delete:
+            index = on_delete_combo.findText(key.on_delete)
+            if index >= 0:
+                on_delete_combo.setCurrentIndex(index)
+        self.keys_table.setCellWidget(row, 5, on_delete_combo)
+
+    def _add_key(self):
+        """Add a new key row."""
+        row = self.keys_table.rowCount()
+        self.keys_table.insertRow(row)
+        self._setup_key_row(row)
+
+        # Focus on the new row
+        self.keys_table.setCurrentCell(row, 0)
+        self.keys_table.editItem(self.keys_table.item(row, 0))
+
+    def _remove_key(self):
+        """Remove selected key rows."""
+        selected_rows = set()
+        for item in self.keys_table.selectedItems():
+            selected_rows.add(item.row())
+
+        if not selected_rows:
+            current_row = self.keys_table.currentRow()
+            if current_row >= 0:
+                selected_rows.add(current_row)
+
+        if selected_rows:
+            if len(selected_rows) > 1:
+                reply = QMessageBox.question(
+                    self,
+                    "Remove Keys",
+                    f"Remove {len(selected_rows)} selected keys?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
+
+            # Remove rows in reverse order
+            for row in sorted(selected_rows, reverse=True):
+                self.keys_table.removeRow(row)
+
+    def _get_key_from_row(self, row):
+        """Get a Key object from a table row."""
+        from ..models.base import Key
+
+        name_item = self.keys_table.item(row, 0)
+        name = name_item.text() if name_item else ""
+
+        type_combo = self.keys_table.cellWidget(row, 1)
+        key_type = type_combo.currentData() if type_combo else Key.UNIQUE
+
+        columns_item = self.keys_table.item(row, 2)
+        columns_str = columns_item.text() if columns_item else ""
+        columns = [c.strip() for c in columns_str.split(",") if c.strip()]
+
+        ref_table_item = self.keys_table.item(row, 3)
+        ref_table = ref_table_item.text().strip() if ref_table_item else None
+        if not ref_table:
+            ref_table = None
+
+        ref_columns_item = self.keys_table.item(row, 4)
+        ref_columns_str = ref_columns_item.text() if ref_columns_item else ""
+        ref_columns = [c.strip() for c in ref_columns_str.split(",") if c.strip()]
+        if not ref_columns:
+            ref_columns = None
+
+        on_delete_combo = self.keys_table.cellWidget(row, 5)
+        on_delete = on_delete_combo.currentText() if on_delete_combo else None
+        if not on_delete:
+            on_delete = None
+
+        return Key(
+            name=name,
+            columns=columns,
+            key_type=key_type,
+            referenced_table=ref_table,
+            referenced_columns=ref_columns,
+            on_delete=on_delete
+        )
+
     def _setup_nullable_cell(self, row, nullable=True):
         """Setup nullable checkbox for a specific cell."""
         # Create a widget to center the checkbox
@@ -736,6 +935,10 @@ class TableDialog(QDialog):
         self.import_csv_btn.clicked.connect(self._import_from_csv)
         self.move_up_btn.clicked.connect(self._move_row_up)
         self.move_down_btn.clicked.connect(self._move_row_down)
+
+        # Connect key management buttons
+        self.add_key_btn.clicked.connect(self._add_key)
+        self.remove_key_btn.clicked.connect(self._remove_key)
 
         # Connect table item changes for multi-select updates
         self.columns_table.itemChanged.connect(self._on_item_changed)
@@ -1547,7 +1750,23 @@ class TableDialog(QDialog):
                         stereotype=stereotype
                     )
                     self.table.add_column(column)
-    
+
+        # Update keys
+        self._update_table_keys()
+
+    def _update_table_keys(self):
+        """Update table keys from the keys table widget."""
+        if not self.table:
+            return
+
+        # Clear existing keys
+        self.table.keys.clear()
+
+        # Add keys from keys table
+        for row in range(self.keys_table.rowCount()):
+            key = self._get_key_from_row(row)
+            self.table.add_key(key)
+
     def _refresh_active_diagram(self):
         """Refresh the active diagram to show updated table structure."""
         # Find the main window

@@ -30,7 +30,8 @@ from .new_project_dialog import NewProjectDialog
 from .generate_dialog import GenerateDialog
 from .project_settings_dialog import ProjectSettingsDialog
 from .about_dialog import AboutDialog, SplashScreen
+from .key_dialog import KeyDialog
 
 __all__ = ['DomainDialog', 'OwnerDialog', 'TableDialog', 'SequenceDialog',
            'DiagramDialog', 'NewProjectDialog', 'GenerateDialog', 'ProjectSettingsDialog',
-           'AboutDialog', 'SplashScreen']
+           'AboutDialog', 'SplashScreen', 'KeyDialog']
