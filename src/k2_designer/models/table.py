@@ -122,9 +122,9 @@ class Table(DatabaseObject):
             'domain': self.domain,
             'editionable': self.editionable,
             'comment': self.comment,
-            'columns': [col.to_dict() for col in sorted(self.columns, key=lambda x: x.guid)],
-            'keys': [key.to_dict() for key in sorted(self.keys, key=lambda x: x.guid)],
-            'indexes': [idx.to_dict() for idx in sorted(self.indexes, key=lambda x: x.guid)],
+            'columns': [col.to_dict() for col in self.columns],  # Preserve user-defined order
+            'keys': [key.to_dict() for key in self.keys],  # Preserve user-defined order
+            'indexes': [idx.to_dict() for idx in self.indexes],  # Preserve user-defined order
             'partitioning': self.partitioning.to_dict() if self.partitioning else None
         }
     
