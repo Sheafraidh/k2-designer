@@ -964,6 +964,24 @@ class DataGridWidget(QWidget):
         self.table.setRowCount(0)
         self.data_changed.emit()
 
+    def commit_active_editor(self):
+        """
+        Commit any active editor to ensure all edits are saved.
+
+        This is important when reading data immediately after user input,
+        such as when clicking OK in a dialog without leaving the edited cell.
+        """
+        if self.table:
+            # Close any open persistent editor
+            current_item = self.table.currentItem()
+            if current_item:
+                self.table.closePersistentEditor(current_item)
+
+            # Also close editor at current index
+            current_index = self.table.currentIndex()
+            if current_index.isValid():
+                self.table.closePersistentEditor(self.table.itemFromIndex(current_index))
+
     def get_cell_widget(self, row: int, col: int):
         """
         Get the widget at a specific cell (for comboboxes, checkboxes, etc.).

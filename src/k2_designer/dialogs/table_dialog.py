@@ -23,10 +23,9 @@ See LICENSE file for full terms.
 
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
                              QLineEdit, QTextEdit, QPushButton, QLabel,
-                             QCheckBox, QComboBox, QTableWidget, QTableWidgetItem,
-                             QHeaderView, QMessageBox, QGroupBox, QTabWidget,
-                             QWidget, QColorDialog, QStyledItemDelegate)
-from PyQt6.QtCore import Qt, pyqtSignal
+                             QCheckBox, QComboBox, QHeaderView, QMessageBox,
+                             QTabWidget, QWidget, QColorDialog)
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 
 from ..models import Table, Column
@@ -34,48 +33,6 @@ from ..models.base import Stereotype, StereotypeType
 from ..widgets import DataGridWidget, ColumnConfig
 
 
-class MultiSelectDelegate(QStyledItemDelegate):
-    """Custom delegate that handles multi-row editing."""
-    
-    # Signal emitted when editing is about to start
-    editingStarted = pyqtSignal(int, int)  # row, column
-    
-    def setEditorData(self, editor, index):
-        """Override to capture when editing starts."""
-        # Emit signal that editing started
-        self.editingStarted.emit(index.row(), index.column())
-        # Call parent implementation
-        super().setEditorData(editor, index)
-
-
-class MultiSelectTableWidget(QTableWidget):
-    """Custom table widget that preserves selection during editing for multi-row updates."""
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._captured_selection = set()
-        self._parent_dialog = None
-        
-        # Install custom delegate
-        self._delegate = MultiSelectDelegate()
-        self.setItemDelegate(self._delegate)
-        
-        # Connect delegate signal
-        self._delegate.editingStarted.connect(self._on_editing_started)
-        
-    def set_parent_dialog(self, dialog):
-        """Set reference to parent dialog for multi-select updates."""
-        self._parent_dialog = dialog
-    
-    def _on_editing_started(self, row, column):
-        """Capture selection when editing starts."""
-        self._captured_selection = set()
-        for item in self.selectedItems():
-            self._captured_selection.add(item.row())
-        
-    def get_captured_selection(self):
-        """Get the selection captured when editing started."""
-        return self._captured_selection
 
 
 class TableDialog(QDialog):
@@ -121,6 +78,11 @@ class TableDialog(QDialog):
         keys_tab = QWidget()
         self._setup_keys_tab(keys_tab)
         self.tab_widget.addTab(keys_tab, "Keys")
+
+        # Indexes tab
+        indexes_tab = QWidget()
+        self._setup_indexes_tab(indexes_tab)
+        self.tab_widget.addTab(indexes_tab, "Indexes")
 
         layout.addWidget(self.tab_widget)
         
@@ -446,6 +408,78 @@ class TableDialog(QDialog):
         info_label.setWordWrap(True)
         layout.addWidget(info_label)
 
+    def _setup_indexes_tab(self, tab_widget):
+        """Setup the indexes tab with DataGridWidget."""
+        layout = QVBoxLayout(tab_widget)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(5)
+
+        # Create DataGridWidget for indexes
+        from ..widgets import DataGridWidget, ColumnConfig
+
+        self.indexes_grid = DataGridWidget()
+
+        # Get all unique tablespaces from owners
+        tablespace_items = [""]  # Empty option
+        if self.owners:
+            tablespaces = set()
+            for owner in self.owners:
+                if owner.default_tablespace:
+                    tablespaces.add(owner.default_tablespace)
+                if owner.temp_tablespace:
+                    tablespaces.add(owner.temp_tablespace)
+                if owner.default_index_tablespace:
+                    tablespaces.add(owner.default_index_tablespace)
+            tablespace_items.extend(sorted(tablespaces))
+
+        # Define columns for indexes grid
+        columns = [
+            ColumnConfig(
+                name="Name",
+                width=200,
+                resize_mode=QHeaderView.ResizeMode.Interactive,
+                editor_type="text",
+                filter_type="text"
+            ),
+            ColumnConfig(
+                name="Columns",
+                width=300,
+                resize_mode=QHeaderView.ResizeMode.Stretch,
+                editor_type="text",
+                filter_type="text"
+            ),
+            ColumnConfig(
+                name="Tablespace",
+                width=150,
+                resize_mode=QHeaderView.ResizeMode.Interactive,
+                editor_type="combobox",
+                editor_options={'items': tablespace_items},
+                filter_type="combobox",
+                filter_options={'items': ['All'] + tablespace_items}
+            ),
+        ]
+
+        # Configure the grid
+        self.indexes_grid.configure(
+            columns=columns,
+            show_filters=True,  # Enable filters for indexes
+            show_add_button=True,
+            show_edit_button=True,
+            show_remove_button=True,
+            show_move_buttons=True
+        )
+
+        # Set custom callback to default tablespace for new rows
+        self.indexes_grid.set_cell_setup_callback(self._setup_index_cell)
+
+        layout.addWidget(self.indexes_grid)
+
+        # Info label
+        info_label = QLabel("Tips: • Name: Index name • Columns: comma-separated list of columns • Tablespace: Defaults to owner's index tablespace")
+        info_label.setStyleSheet("color: #666; font-style: italic; font-size: 11px;")
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
     def _populate_stereotypes(self):
         """Populate stereotype combo with project stereotypes."""
         self.stereotype_combo.clear()
@@ -482,6 +516,9 @@ class TableDialog(QDialog):
             
             # Load keys
             self._load_keys()
+
+            # Load indexes
+            self._load_indexes()
 
             # Name is now editable in edit mode (removed read-only restriction)
         elif self.selected_owner:
@@ -534,6 +571,26 @@ class TableDialog(QDialog):
 
             self.keys_grid.add_row(row_data)
 
+    def _load_indexes(self):
+        """Load indexes into the indexes grid."""
+        if not self.table:
+            return
+
+        # Clear existing rows
+        self.indexes_grid.clear_data()
+
+        # Add indexes from table
+        for index in self.table.indexes:
+            # Convert index to row data
+            columns_str = ", ".join(index.columns) if index.columns else ""
+
+            row_data = [
+                index.name,
+                columns_str,
+                index.tablespace or ""
+            ]
+
+            self.indexes_grid.add_row(row_data)
 
     def _on_domain_changed(self, row, domain_name):
         """Handle domain selection change for a column."""
@@ -574,6 +631,22 @@ class TableDialog(QDialog):
         # The value will be read when saving the table
         pass
     
+    def _setup_index_cell(self, row: int, col: int, value):
+        """Custom cell setup for indexes grid."""
+        # Column 2 is Tablespace - set default from owner's index tablespace for new rows
+        if col == 2 and not value:  # Only set default if value is empty
+            tablespace_combo = self.indexes_grid.get_cell_widget(row, col)
+            if tablespace_combo and isinstance(tablespace_combo, QComboBox):
+                # Get current owner's default index tablespace
+                current_owner = self.owner_combo.currentText()
+                if current_owner and self.owners:
+                    owner = next((o for o in self.owners if o.name == current_owner), None)
+                    if owner and owner.default_index_tablespace:
+                        # Set to owner's default index tablespace
+                        index = tablespace_combo.findText(owner.default_index_tablespace)
+                        if index >= 0:
+                            tablespace_combo.setCurrentIndex(index)
+
     def _connect_signals(self):
         """Connect signals."""
         self.ok_button.clicked.connect(self._on_ok)
@@ -727,6 +800,9 @@ class TableDialog(QDialog):
         if not self.table:
             return
         
+        # Commit any active editor before reading data
+        self.columns_grid.commit_active_editor()
+
         # Clear existing columns
         self.table.columns.clear()
         
@@ -753,12 +829,18 @@ class TableDialog(QDialog):
         # Update keys
         self._update_table_keys()
 
+        # Update indexes
+        self._update_table_indexes()
+
     def _update_table_keys(self):
         """Update table keys from the keys grid widget."""
         from ..models.base import Key
 
         if not self.table:
             return
+
+        # Commit any active editor before reading data
+        self.keys_grid.commit_active_editor()
 
         # Clear existing keys
         self.table.keys.clear()
@@ -767,23 +849,23 @@ class TableDialog(QDialog):
         for row_data in self.keys_grid.get_all_data():
             name, key_type, columns_str, ref_table, ref_columns_str, on_delete = row_data
 
+            # Convert to strings first
+            name = str(name) if name else ""
+            columns_str = str(columns_str) if columns_str else ""
+            ref_table = str(ref_table) if ref_table else ""
+            ref_columns_str = str(ref_columns_str) if ref_columns_str else ""
+            on_delete = str(on_delete) if on_delete else ""
+
             # Parse columns
             columns = [c.strip() for c in columns_str.split(",") if c.strip()] if columns_str else []
 
             # Parse referenced columns
-            ref_columns = [c.strip() for c in ref_columns_str.split(",") if c.strip()] if ref_columns_str else None
+            ref_columns = [c.strip() for c in ref_columns_str.split(",") if c.strip()] if ref_columns_str else []
 
-            # Clean up empty strings
-            ref_table = ref_table.strip() if ref_table else None
-            if not ref_table:
-                ref_table = None
-
-            if not ref_columns:
-                ref_columns = None
-
-            on_delete = on_delete.strip() if on_delete else None
-            if not on_delete:
-                on_delete = None
+            # Clean up empty strings - keep value if it has content after stripping
+            ref_table = ref_table.strip() if ref_table and ref_table.strip() else None
+            ref_columns = ref_columns if ref_columns else None
+            on_delete = on_delete.strip() if on_delete and on_delete.strip() else None
 
             # Only add keys with name and columns
             if name.strip() and columns:
@@ -796,6 +878,43 @@ class TableDialog(QDialog):
                     on_delete=on_delete
                 )
                 self.table.add_key(key)
+
+    def _update_table_indexes(self):
+        """Update table indexes from the indexes grid widget."""
+        from ..models.base import Index
+
+        if not self.table:
+            return
+
+        # Commit any active editor before reading data
+        self.indexes_grid.commit_active_editor()
+
+        # Clear existing indexes
+        self.table.indexes.clear()
+
+        # Add indexes from grid widget
+        for row_data in self.indexes_grid.get_all_data():
+            name, columns_str, tablespace = row_data
+
+            # Convert to strings and parse columns
+            name = str(name) if name else ""
+            columns_str = str(columns_str) if columns_str else ""
+            tablespace = str(tablespace) if tablespace else ""
+
+            # Parse columns
+            columns = [c.strip() for c in columns_str.split(",") if c.strip()] if columns_str else []
+
+            # Clean up tablespace - keep it if it has content, otherwise None
+            tablespace = tablespace.strip() if tablespace and tablespace.strip() else None
+
+            # Only add indexes with name and columns
+            if name.strip() and columns:
+                index = Index(
+                    name=name.strip(),
+                    columns=columns,
+                    tablespace=tablespace
+                )
+                self.table.add_index(index)
 
     def _refresh_active_diagram(self):
         """Refresh the active diagram to show updated table structure."""
