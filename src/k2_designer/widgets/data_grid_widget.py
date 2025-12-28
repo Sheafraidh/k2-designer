@@ -215,6 +215,7 @@ class DataGridWidget(QWidget):
 
         # Labels row
         labels_layout = QHBoxLayout()
+        labels_layout.setSpacing(0)  # Remove spacing for better alignment
         for col in self._columns:
             if col.filter_type != "none":
                 label = QLabel(col.name)
@@ -222,15 +223,16 @@ class DataGridWidget(QWidget):
                 label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 labels_layout.addWidget(label)
 
-        # Clear button label
+        # Small spacer for clear button
         clear_label = QLabel("")
-        clear_label.setFixedWidth(100)
+        clear_label.setFixedWidth(30)
         labels_layout.addWidget(clear_label)
 
         filter_layout.addLayout(labels_layout)
 
         # Filter inputs row
         inputs_layout = QHBoxLayout()
+        inputs_layout.setSpacing(0)  # Remove spacing for better alignment
         self._filters = []
 
         for col in self._columns:
@@ -258,9 +260,11 @@ class DataGridWidget(QWidget):
             elif col.filter_type == "none":
                 self._filters.append(None)
 
-        # Clear filters button
-        clear_btn = QPushButton("Clear Filters")
-        clear_btn.setFixedWidth(100)
+        # Clear filters button - small icon button
+        clear_btn = QPushButton("⊗")
+        clear_btn.setToolTip("Clear Filters")
+        clear_btn.setFixedSize(28, 28)
+        clear_btn.setStyleSheet("font-weight: bold; font-size: 16px;")
         clear_btn.clicked.connect(self._clear_filters)
         inputs_layout.addWidget(clear_btn)
 
