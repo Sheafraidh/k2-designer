@@ -48,9 +48,27 @@ class AboutDialog(QDialog):
             # Set minimum display time - allow closing after 1.5 seconds
             QTimer.singleShot(1500, self._allow_close)
 
+
     def _allow_close(self):
         """Mark that splash can be closed (after minimum display time)."""
         self._can_close = True
+
+    def _center_on_parent(self):
+        """Center the dialog on the parent window, or screen if no parent."""
+        if self.parent():
+            # Get parent window geometry
+            parent_geometry = self.parent().geometry()
+            # Calculate center position
+            x = parent_geometry.x() + (parent_geometry.width() - self.width()) // 2
+            y = parent_geometry.y() + (parent_geometry.height() - self.height()) // 2
+            self.move(x, y)
+        else:
+            # No parent, center on screen
+            from PyQt6.QtWidgets import QApplication
+            screen = QApplication.primaryScreen().geometry()
+            x = (screen.width() - self.width()) // 2
+            y = (screen.height() - self.height()) // 2
+            self.move(x, y)
 
     def finish(self):
         """Close the splash screen (will wait for minimum display time if needed)."""
@@ -59,6 +77,12 @@ class AboutDialog(QDialog):
         else:
             # Wait a bit and try again
             QTimer.singleShot(100, self.finish)
+
+    def showEvent(self, event):
+        """Override showEvent to center dialog when shown (parent is properly positioned by then)."""
+        super().showEvent(event)
+        # Center on parent after dialog is shown and parent is properly positioned
+        QTimer.singleShot(0, self._center_on_parent)
 
     def _setup_ui(self):
         """Setup the UI components."""
@@ -248,6 +272,9 @@ class AboutDialog(QDialog):
             self.license_link.setText('<a href="#" style="text-decoration: none;">▼ Hide License Information</a>')
             # Resize dialog to larger size
             self.resize(700, 700)
+
+        # Re-center after resize
+        self._center_on_parent()
 
     def mousePressEvent(self, event):
         """Allow clicking to close splash screen."""

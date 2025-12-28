@@ -55,8 +55,8 @@ class TableDialog(QDialog):
         """Setup the UI components."""
         self.setWindowTitle("Edit Table" if self.is_edit_mode else "Add Table")
         self.setModal(True)
-        self.resize(750, 500)  # Increased width to accommodate all columns including domain
-        
+        self.resize(1000, 600)  # Larger size to accommodate all columns comfortably
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)  # Reduced margins around dialog
         layout.setSpacing(5)  # Reduced spacing between elements

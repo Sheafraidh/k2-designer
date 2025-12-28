@@ -137,6 +137,11 @@ class DataGridWidget(QWidget):
         self.table: Optional[MultiSelectTableWidget] = None
         self.filter_table: Optional[QTableWidget] = None
 
+        # Sorting state
+        self._original_order: List[List[Any]] = []
+        self._sort_column: int = -1
+        self._sort_order: int = 0  # 0 = unsorted, 1 = ascending, 2 = descending
+
         self._setup_ui()
 
     def _setup_ui(self):
@@ -282,6 +287,120 @@ class DataGridWidget(QWidget):
             self.filter_table.setColumnWidth(logical_index, new_size)
             filter_header.blockSignals(False)
 
+    def _on_header_clicked(self, logical_index: int):
+        """Handle column header click for sorting."""
+        # If clicking a different column, reset to ascending
+        if logical_index != self._sort_column:
+            self._sort_column = logical_index
+            self._sort_order = 1  # Ascending
+        else:
+            # Cycle through: ascending -> descending -> unsorted
+            self._sort_order = (self._sort_order % 3) + 1
+            if self._sort_order == 3:
+                self._sort_order = 0  # Back to unsorted
+
+        # Perform the sort
+        self._sort_table()
+
+    def _sort_table(self):
+        """Sort the table based on current sort state."""
+        if self._sort_column < 0:
+            return
+
+        header = self.table.horizontalHeader()
+
+        if self._sort_order == 0:
+            # Unsorted - restore original order
+            header.setSortIndicator(-1, Qt.SortOrder.AscendingOrder)
+            self._restore_original_order()
+        elif self._sort_order == 1:
+            # Ascending
+            header.setSortIndicator(self._sort_column, Qt.SortOrder.AscendingOrder)
+            self._sort_by_column(self._sort_column, ascending=True)
+        else:  # self._sort_order == 2
+            # Descending
+            header.setSortIndicator(self._sort_column, Qt.SortOrder.DescendingOrder)
+            self._sort_by_column(self._sort_column, ascending=False)
+
+    def _capture_original_order(self):
+        """Capture the current order of rows before sorting."""
+        self._original_order = []
+        for row in range(self.table.rowCount()):
+            self._original_order.append(self.get_row_data(row))
+
+    def _restore_original_order(self):
+        """Restore the original order of rows."""
+        if not self._original_order:
+            return
+
+        self.table.blockSignals(True)
+        try:
+            # Clear current data
+            self.table.setRowCount(0)
+
+            # Restore original data
+            for row_data in self._original_order:
+                row = self.table.rowCount()
+                self.table.insertRow(row)
+                self._populate_row(row, row_data)
+        finally:
+            self.table.blockSignals(False)
+
+        self._apply_filters()
+
+    def _sort_by_column(self, column: int, ascending: bool = True):
+        """Sort table by specified column."""
+        # Capture original order if not already captured
+        if not self._original_order:
+            self._capture_original_order()
+
+        # Get all visible rows data
+        rows_data = []
+        for row in range(self.table.rowCount()):
+            rows_data.append(self.get_row_data(row))
+
+        # Sort the data
+        try:
+            rows_data.sort(key=lambda row: self._get_sort_key(row, column), reverse=not ascending)
+        except Exception as e:
+            # If sorting fails, just return without sorting
+            print(f"Sorting failed: {e}")
+            return
+
+        # Update table with sorted data
+        self.table.blockSignals(True)
+        try:
+            for row_idx, row_data in enumerate(rows_data):
+                self.set_row_data(row_idx, row_data)
+        finally:
+            self.table.blockSignals(False)
+
+        self._apply_filters()
+
+    def _get_sort_key(self, row_data: List[Any], column: int):
+        """Get sort key for a row's column value."""
+        if column >= len(row_data):
+            return ""
+
+        value = row_data[column]
+
+        # Handle boolean values
+        if isinstance(value, bool):
+            return (0 if value else 1, "")
+
+        # Handle numeric values
+        if isinstance(value, (int, float)):
+            return (0, value)
+
+        # Handle string values
+        value_str = str(value).lower() if value else ""
+
+        # Try to parse as number for natural sorting
+        try:
+            return (0, float(value_str))
+        except ValueError:
+            return (1, value_str)
+
     def _build_toolbar(self):
         """Build the toolbar with action buttons."""
         toolbar_layout = QHBoxLayout()
@@ -385,6 +504,10 @@ class DataGridWidget(QWidget):
         # Configure column widths and resize modes
         header = self.table.horizontalHeader()
         header.setStretchLastSection(False)
+
+        # Enable sorting but use custom handler
+        header.setSortIndicatorShown(True)
+        header.sectionClicked.connect(self._on_header_clicked)
 
         for i, col in enumerate(self._columns):
             self.table.setColumnWidth(i, col.width)
