@@ -54,6 +54,8 @@ class MainWindow(QMainWindow):
         self._create_toolbars()
         self._connect_signals()
 
+    def initialize_content(self):
+        """Initialize content after window is shown (theme, project loading, etc.)."""
         # Apply saved theme on startup
         self._apply_user_theme()
 
@@ -63,8 +65,31 @@ class MainWindow(QMainWindow):
     def _setup_ui(self):
         """Setup the main UI components."""
         self.setWindowTitle("K2 Designer")
-        self.setMinimumSize(1200, 800)
-        
+
+        # Restore window geometry from settings
+        geometry = self.user_settings.window_geometry
+        if geometry.get('x') is not None and geometry.get('y') is not None:
+            # Position and size were saved, restore them
+            self.setGeometry(
+                geometry['x'],
+                geometry['y'],
+                geometry.get('width', 1200),
+                geometry.get('height', 800)
+            )
+        else:
+            # No saved position, use default size and let Qt position it
+            self.setMinimumSize(1200, 800)
+            self.resize(1200, 800)
+
+        # Restore window state (maximized, normal, etc.)
+        # This must be done after setting geometry
+        window_state = self.user_settings.window_state
+        if window_state == 'maximized':
+            self.showMaximized()
+        elif window_state == 'minimized':
+            self.showMinimized()
+        # 'normal' state doesn't need special handling
+
         # Set window icon
         from PyQt6.QtGui import QIcon
         import os
@@ -783,6 +808,28 @@ class MainWindow(QMainWindow):
         if self._check_unsaved_changes():
             # Save view state of all open diagrams
             self._save_all_diagram_view_states()
+
+            # Determine current window state
+            if self.isMaximized():
+                window_state = 'maximized'
+            elif self.isMinimized():
+                window_state = 'minimized'
+            else:
+                window_state = 'normal'
+
+            # Save window state
+            self.user_settings.window_state = window_state
+
+            # Only save geometry if window is in normal state (not maximized/minimized)
+            # This preserves the normal geometry when window is maximized
+            if window_state == 'normal':
+                geometry = self.geometry()
+                self.user_settings.window_geometry = {
+                    'x': geometry.x(),
+                    'y': geometry.y(),
+                    'width': geometry.width(),
+                    'height': geometry.height()
+                }
 
             # Save the last opened project path
             if self.current_project and self.current_project.file_path:

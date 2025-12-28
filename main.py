@@ -138,17 +138,25 @@ def main():
         app.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
     if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
         app.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
-    
-    # Show splash screen
+
+    # Create the main window (but don't initialize content yet)
+    main_window = MainWindow()
+
+    # Show the main window to establish its position
+    main_window.show()
+    app.processEvents()  # Process events to get proper window geometry
+
+    # Show splash screen (now parent window is properly positioned)
     from src.k2_designer.dialogs.about_dialog import SplashScreen
-    splash = SplashScreen()
+    splash = SplashScreen(parent=main_window)
     splash.show()
     app.processEvents()  # Process events to ensure splash is shown
-
-    # Create and show the main window
-    main_window = MainWindow()
-    main_window.show()
     
+    # Now initialize the main window content "behind" the splash screen
+    # This includes loading the last project, setting up UI, etc.
+    main_window.initialize_content()
+    app.processEvents()  # Process any UI updates
+
     # Close splash screen (will wait for minimum display time)
     splash.finish()
 

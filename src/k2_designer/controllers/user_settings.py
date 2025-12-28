@@ -49,7 +49,14 @@ class UserSettingsManager:
             'template_directory': '',
             'output_directory': '',
             'theme': 'system',  # system, light, or dark
-            'last_project_path': ''  # Path to last opened project
+            'last_project_path': '',  # Path to last opened project
+            'window_geometry': {  # Main window position and size (when not maximized)
+                'x': None,
+                'y': None,
+                'width': 1200,
+                'height': 800
+            },
+            'window_state': 'normal'  # normal, maximized, or minimized
         }
 
     def load_settings(self):
@@ -148,5 +155,27 @@ class UserSettingsManager:
     def last_project_path(self, value):
         """Set last project path setting."""
         self._settings['last_project_path'] = value
+        self.save_settings()
+
+    @property
+    def window_geometry(self):
+        """Get window geometry setting (x, y, width, height)."""
+        return self._settings.get('window_geometry', {'x': None, 'y': None, 'width': 1200, 'height': 800})
+
+    @window_geometry.setter
+    def window_geometry(self, value):
+        """Set window geometry setting (dict with x, y, width, height)."""
+        self._settings['window_geometry'] = value
+        self.save_settings()
+
+    @property
+    def window_state(self):
+        """Get window state setting (normal, maximized, or minimized)."""
+        return self._settings.get('window_state', 'normal')
+
+    @window_state.setter
+    def window_state(self, value):
+        """Set window state setting."""
+        self._settings['window_state'] = value
         self.save_settings()
 
