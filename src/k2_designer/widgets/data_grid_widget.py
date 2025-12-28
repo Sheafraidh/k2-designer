@@ -23,7 +23,7 @@ See LICENSE file for full terms.
 from typing import List, Dict, Optional, Callable, Any
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QTableWidgetItem, QPushButton, QLabel, QLineEdit,
-                             QComboBox, QGroupBox, QHeaderView, QMessageBox,
+                             QComboBox, QHeaderView, QMessageBox,
                              QStyledItemDelegate)
 from PyQt6.QtCore import Qt, pyqtSignal
 
@@ -135,7 +135,7 @@ class DataGridWidget(QWidget):
 
         # UI Components
         self.table: Optional[MultiSelectTableWidget] = None
-        self.filter_group: Optional[QGroupBox] = None
+        self.filter_table: Optional[QTableWidget] = None
 
         self._setup_ui()
 
@@ -184,17 +184,17 @@ class DataGridWidget(QWidget):
             elif item.layout():
                 self._clear_layout(item.layout())
 
-        # Build filter section if enabled
+        # Build toolbar with action buttons (including clear filters if filters enabled)
+        if any([self._show_add_button, self._show_edit_button,
+                self._show_remove_button, self._show_move_buttons,
+                self._custom_buttons]) or self._show_filters:
+            self._build_toolbar()
+
+        # Build filter table if enabled
         if self._show_filters and self._columns:
             self._build_filters()
 
-        # Build toolbar with action buttons
-        if any([self._show_add_button, self._show_edit_button,
-                self._show_remove_button, self._show_move_buttons,
-                self._custom_buttons]):
-            self._build_toolbar()
-
-        # Build table
+        # Build main table
         self._build_table()
 
     def _clear_layout(self, layout):
@@ -207,46 +207,42 @@ class DataGridWidget(QWidget):
                 self._clear_layout(item.layout())
 
     def _build_filters(self):
-        """Build the filter section."""
-        self.filter_group = QGroupBox("Filters")
-        filter_layout = QVBoxLayout(self.filter_group)
-        filter_layout.setContentsMargins(5, 5, 5, 5)
-        filter_layout.setSpacing(3)
+        """Build the filter table."""
+        self.filter_table = QTableWidget()
+        self.filter_table.setRowCount(1)
+        self.filter_table.setColumnCount(len(self._columns))
 
-        # Labels row
-        labels_layout = QHBoxLayout()
-        labels_layout.setSpacing(0)  # Remove spacing for better alignment
-        for col in self._columns:
-            if col.filter_type != "none":
-                label = QLabel(col.name)
-                label.setFixedWidth(col.width)
-                label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                labels_layout.addWidget(label)
+        # Set column headers to match main table
+        self.filter_table.setHorizontalHeaderLabels([col.name for col in self._columns])
 
-        # Small spacer for clear button
-        clear_label = QLabel("")
-        clear_label.setFixedWidth(30)
-        labels_layout.addWidget(clear_label)
+        # Show vertical header for row number
+        self.filter_table.verticalHeader().setVisible(True)
+        self.filter_table.setVerticalHeaderLabels(["#"])
 
-        filter_layout.addLayout(labels_layout)
+        # Set fixed height (just one row for filters)
+        self.filter_table.setFixedHeight(60)  # Header + one row
 
-        # Filter inputs row
-        inputs_layout = QHBoxLayout()
-        inputs_layout.setSpacing(0)  # Remove spacing for better alignment
+        # Configure header to match main table sizing
+        filter_header = self.filter_table.horizontalHeader()
+        filter_header.setStretchLastSection(False)
+
+        # Set column widths and resize modes to match main table
+        for i, col in enumerate(self._columns):
+            self.filter_table.setColumnWidth(i, col.width)
+            filter_header.setSectionResizeMode(i, col.resize_mode)
+
+        # Setup filter widgets in the cells
         self._filters = []
-
-        for col in self._columns:
+        for col_idx, col in enumerate(self._columns):
             if col.filter_type == "text":
                 filter_widget = QLineEdit()
                 filter_widget.setPlaceholderText(f"Filter {col.name}...")
-                filter_widget.setFixedWidth(col.width)
                 filter_widget.textChanged.connect(self._apply_filters)
                 self._filters.append(filter_widget)
-                inputs_layout.addWidget(filter_widget)
+                self.filter_table.setCellWidget(0, col_idx, filter_widget)
 
             elif col.filter_type == "combobox":
                 filter_widget = QComboBox()
-                filter_widget.setFixedWidth(col.width)
                 items = col.filter_options.get('items', ['All'])
                 filter_widget.addItems(items)
                 if col.filter_options.get('editable', False):
@@ -255,21 +251,36 @@ class DataGridWidget(QWidget):
                     filter_widget.lineEdit().textChanged.connect(self._apply_filters)
                 filter_widget.currentTextChanged.connect(self._apply_filters)
                 self._filters.append(filter_widget)
-                inputs_layout.addWidget(filter_widget)
+                self.filter_table.setCellWidget(0, col_idx, filter_widget)
 
             elif col.filter_type == "none":
                 self._filters.append(None)
+                # Set empty widget for alignment
+                empty_widget = QWidget()
+                self.filter_table.setCellWidget(0, col_idx, empty_widget)
 
-        # Clear filters button - small icon button
-        clear_btn = QPushButton("⊗")
-        clear_btn.setToolTip("Clear Filters")
-        clear_btn.setFixedSize(28, 28)
-        clear_btn.setStyleSheet("font-weight: bold; font-size: 16px;")
-        clear_btn.clicked.connect(self._clear_filters)
-        inputs_layout.addWidget(clear_btn)
+        # Connect filter table column resize to sync with main table
+        filter_header.sectionResized.connect(self._on_filter_column_resized)
 
-        filter_layout.addLayout(inputs_layout)
-        self.layout.addWidget(self.filter_group)
+        self.layout.addWidget(self.filter_table)
+
+    def _on_filter_column_resized(self, logical_index: int, old_size: int, new_size: int):
+        """Handle filter table column resize and sync with main table."""
+        if self.table and logical_index < self.table.columnCount():
+            # Block signals to prevent infinite loop
+            main_header = self.table.horizontalHeader()
+            main_header.blockSignals(True)
+            self.table.setColumnWidth(logical_index, new_size)
+            main_header.blockSignals(False)
+
+    def _on_main_column_resized(self, logical_index: int, old_size: int, new_size: int):
+        """Handle main table column resize and sync with filter table."""
+        if self.filter_table and logical_index < self.filter_table.columnCount():
+            # Block signals to prevent infinite loop
+            filter_header = self.filter_table.horizontalHeader()
+            filter_header.blockSignals(True)
+            self.filter_table.setColumnWidth(logical_index, new_size)
+            filter_header.blockSignals(False)
 
     def _build_toolbar(self):
         """Build the toolbar with action buttons."""
@@ -349,6 +360,16 @@ class DataGridWidget(QWidget):
                 toolbar_layout.addWidget(btn)
 
         toolbar_layout.addStretch()
+
+        # Add clear filters button at the end if filters are enabled
+        if self._show_filters:
+            clear_filters_btn = QPushButton("⊗")
+            clear_filters_btn.setToolTip("Clear Filters")
+            clear_filters_btn.setFixedSize(28, 28)
+            clear_filters_btn.setStyleSheet("font-weight: bold; font-size: 16px;")
+            clear_filters_btn.clicked.connect(self._clear_filters)
+            toolbar_layout.addWidget(clear_filters_btn)
+
         self.layout.addLayout(toolbar_layout)
 
     def _build_table(self):
@@ -368,6 +389,9 @@ class DataGridWidget(QWidget):
         for i, col in enumerate(self._columns):
             self.table.setColumnWidth(i, col.width)
             header.setSectionResizeMode(i, col.resize_mode)
+
+        # Connect main table column resize to sync with filter table
+        header.sectionResized.connect(self._on_main_column_resized)
 
         self.layout.addWidget(self.table)
 
