@@ -111,16 +111,40 @@ class ProjectManager:
             "stereotypes": [stereotype.to_dict() for stereotype in sorted(project.stereotypes, key=lambda x: x.guid)],
             "tables": [table.to_dict() for table in sorted(project.tables, key=lambda x: x.guid)],
             "sequences": [seq.to_dict() for seq in sorted(project.sequences, key=lambda x: x.guid)],
-            "foreign_keys": [
-                {
-                    "source_key": fk_key,
-                    "target_table": fk_value["target_table"],
-                    "target_column": fk_value["target_column"]
-                }
-                for fk_key, fk_value in sorted(project.foreign_keys.items())
-            ],
+            # Note: foreign_keys are no longer saved - they're auto-built from table keys
             "diagrams": [diagram.to_dict() for diagram in sorted(project.diagrams, key=lambda x: x.guid)]
         }
+
+    def _build_foreign_keys_index(self, project: Project):
+        """Build the foreign_keys index from table keys for quick relationship lookups."""
+        project.foreign_keys.clear()
+
+        for table in project.tables:
+            table_full_name = f"{table.owner}.{table.name}"
+
+            # Find all foreign keys in this table
+            for key in table.keys:
+                from ..models.base import Key
+                if key.key_type == Key.FOREIGN and key.referenced_table:
+                    # For each column in the foreign key, add an entry to the index
+                    for i, source_column in enumerate(key.columns):
+                        # Get corresponding referenced column
+                        if key.referenced_columns and i < len(key.referenced_columns):
+                            target_column = key.referenced_columns[i]
+                        else:
+                            # Fallback: use same column name if referenced_columns not specified
+                            target_column = source_column
+
+                        # Build the index key: "owner.table.column"
+                        index_key = f"{table_full_name}.{source_column}"
+
+                        # Add to foreign_keys index
+                        project.add_foreign_key(
+                            table_full_name,
+                            source_column,
+                            key.referenced_table,
+                            target_column
+                        )
 
     def _dict_to_project(self, data: dict) -> Optional[Project]:
         """Convert a dictionary to a Project object."""
@@ -143,7 +167,8 @@ class ProjectManager:
                 domain = Domain(
                     name=domain_data["name"],
                     data_type=domain_data["data_type"],
-                    comment=domain_data.get("comment")
+                    comment=domain_data.get("comment"),
+                    guid=domain_data.get("guid")
                 )
                 project.add_domain(domain)
 
@@ -155,7 +180,8 @@ class ProjectManager:
                     temp_tablespace=owner_data.get("temp_tablespace"),
                     default_index_tablespace=owner_data.get("default_index_tablespace"),
                     editionable=owner_data.get("editionable", False),
-                    comment=owner_data.get("comment")
+                    comment=owner_data.get("comment"),
+                    guid=owner_data.get("guid")
                 )
                 project.add_owner(owner)
 
@@ -165,7 +191,8 @@ class ProjectManager:
                     name=stereotype_data["name"],
                     stereotype_type=StereotypeType(stereotype_data["stereotype_type"]),
                     description=stereotype_data.get("description"),
-                    background_color=stereotype_data["background_color"]
+                    background_color=stereotype_data["background_color"],
+                    guid=stereotype_data.get("guid")
                 )
                 project.add_stereotype(stereotype)
 
@@ -179,7 +206,8 @@ class ProjectManager:
                     color=table_data.get("color"),
                     domain=table_data.get("domain"),
                     editionable=table_data.get("editionable", False),
-                    comment=table_data.get("comment")
+                    comment=table_data.get("comment"),
+                    guid=table_data.get("guid")
                 )
 
                 # Load columns
@@ -191,7 +219,8 @@ class ProjectManager:
                         default=col_data.get("default"),
                         comment=col_data.get("comment"),
                         domain=col_data.get("domain"),
-                        stereotype=col_data.get("stereotype")
+                        stereotype=col_data.get("stereotype"),
+                        guid=col_data.get("guid")
                     )
                     table.add_column(column)
 
@@ -199,7 +228,13 @@ class ProjectManager:
                 for key_data in table_data.get("keys", []):
                     key = Key(
                         name=key_data["name"],
-                        columns=key_data["columns"]
+                        columns=key_data["columns"],
+                        key_type=key_data.get("key_type", Key.UNIQUE),
+                        referenced_table=key_data.get("referenced_table"),
+                        referenced_columns=key_data.get("referenced_columns", []),
+                        on_delete=key_data.get("on_delete"),
+                        on_update=key_data.get("on_update"),
+                        guid=key_data.get("guid")
                     )
                     table.add_key(key)
 
@@ -208,7 +243,8 @@ class ProjectManager:
                     index = Index(
                         name=index_data["name"],
                         columns=index_data["columns"],
-                        tablespace=index_data.get("tablespace")
+                        tablespace=index_data.get("tablespace"),
+                        guid=index_data.get("guid")
                     )
                     table.add_index(index)
 
@@ -234,29 +270,21 @@ class ProjectManager:
                     max_value=seq_data.get("max_value"),
                     cache_size=seq_data.get("cache_size", 20),
                     cycle=seq_data.get("cycle", False),
-                    comment=seq_data.get("comment")
+                    comment=seq_data.get("comment"),
+                    guid=seq_data.get("guid")
                 )
                 project.add_sequence(sequence)
 
-            # Load foreign keys
-            for fk_data in data.get("foreign_keys", []):
-                source_key = fk_data["source_key"]
-                source_parts = source_key.split('.')
-                if len(source_parts) >= 2:
-                    source_table = '.'.join(source_parts[:-1])
-                    source_column = source_parts[-1]
-                    project.add_foreign_key(
-                        source_table,
-                        source_column,
-                        fk_data["target_table"],
-                        fk_data["target_column"]
-                    )
+            # Auto-build foreign_keys index from table keys for backward compatibility
+            # This replaces the old separate foreign_keys storage
+            self._build_foreign_keys_index(project)
 
             # Load diagrams
             for diagram_data in data.get("diagrams", []):
                 diagram = Diagram(
                     name=diagram_data["name"],
-                    description=diagram_data.get("description")
+                    description=diagram_data.get("description"),
+                    guid=diagram_data.get("guid")
                 )
                 diagram.is_active = diagram_data.get("is_active", False)
                 diagram.zoom_level = diagram_data.get("zoom_level", 1.0)
