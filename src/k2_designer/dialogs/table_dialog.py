@@ -30,6 +30,7 @@ from PyQt6.QtGui import QColor
 
 from ..models import Table, Column
 from ..models.base import Stereotype, StereotypeType
+from ..controllers.naming_rules_engine import NamingRulesEngine
 from ..widgets import DataGridWidget, ColumnConfig
 
 
@@ -47,6 +48,9 @@ class TableDialog(QDialog):
         self.project = project
         self.is_edit_mode = table is not None
         
+        # Initialize naming rules engine
+        self.naming_engine = NamingRulesEngine()
+
         self._setup_ui()
         self._load_data()
         self._connect_signals()
@@ -397,8 +401,25 @@ class TableDialog(QDialog):
             show_add_button=True,
             show_edit_button=True,
             show_remove_button=True,
-            show_move_buttons=True
+            show_move_buttons=True,
+            custom_buttons=[
+                {
+                    'text': 'Add FK',
+                    'tooltip': 'Add Foreign Key',
+                    'callback': self._add_foreign_key,
+                    'style': 'font-size: 12px; padding: 4px 8px;'
+                },
+                {
+                    'text': 'Add UQ',
+                    'tooltip': 'Add Unique Key',
+                    'callback': self._add_unique_key,
+                    'style': 'font-size: 12px; padding: 4px 8px;'
+                }
+            ]
         )
+
+        # Set callback to auto-generate key names
+        self.keys_grid.set_cell_setup_callback(self._setup_key_cell)
 
         layout.addWidget(self.keys_grid)
 
@@ -631,10 +652,83 @@ class TableDialog(QDialog):
         # The value will be read when saving the table
         pass
     
+    def _setup_key_cell(self, row: int, col: int, value):
+        """Custom cell setup for keys grid to auto-generate names."""
+        # Column 0 is Name - auto-generate if empty
+        if col == 0 and not value:
+            # Get current table name
+            table_name = self.name_edit.text().strip()
+            if not table_name:
+                return
+
+            # Get key type from column 1
+            key_type_widget = self.keys_grid.get_cell_widget(row, 1)
+            if key_type_widget and isinstance(key_type_widget, QComboBox):
+                from ..models.base import Key
+                key_type = key_type_widget.currentData()
+
+                # Get columns from column 2
+                columns_item = self.keys_grid.get_cell_item(row, 2)
+                columns_str = columns_item.text() if columns_item else ""
+                columns = [c.strip() for c in columns_str.split(',') if c.strip()]
+
+                # Get referenced table for foreign keys
+                referenced_table_item = self.keys_grid.get_cell_item(row, 3)
+                referenced_table = referenced_table_item.text() if referenced_table_item else None
+
+                # Generate name based on key type
+                if key_type == Key.PRIMARY:
+                    generated_name = self.naming_engine.generate_primary_key_name(
+                        table_name, columns, self.table
+                    )
+                elif key_type == Key.FOREIGN:
+                    generated_name = self.naming_engine.generate_foreign_key_name(
+                        table_name, columns, referenced_table, self.table
+                    )
+                elif key_type == Key.UNIQUE:
+                    generated_name = self.naming_engine.generate_unique_key_name(
+                        table_name, columns, self.table
+                    )
+                else:
+                    return
+
+                # Set the generated name
+                name_item = self.keys_grid.get_cell_item(row, 0)
+                if name_item:
+                    name_item.setText(generated_name)
+
     def _setup_index_cell(self, row: int, col: int, value):
         """Custom cell setup for indexes grid."""
+        # Column 0 is Name - auto-generate if empty
+        if col == 0 and not value:
+            table_name = self.name_edit.text().strip()
+            if table_name:
+                # Create temporary table with existing indexes from grid to get correct count
+                from ..models import Table as TempTable
+                from ..models.base import Index
+                temp_table = TempTable(name=table_name, owner=self.owner_combo.currentText())
+
+                # Add existing indexes from grid to temp table for counting
+                for grid_row in range(self.indexes_grid.table.rowCount()):
+                    name_item = self.indexes_grid.get_cell_item(grid_row, 0)
+                    name = name_item.text() if name_item else ""
+
+                    if name.strip():
+                        temp_index = Index(name=name.strip(), columns=[])
+                        temp_table.add_index(temp_index)
+
+                # Use naming engine to generate name with correct numbering
+                generated_name = self.naming_engine.generate_index_name(
+                    table_name, [], temp_table
+                )
+
+                # Set the generated name
+                name_item = self.indexes_grid.get_cell_item(row, 0)
+                if name_item:
+                    name_item.setText(generated_name)
+
         # Column 2 is Tablespace - set default from owner's index tablespace for new rows
-        if col == 2 and not value:  # Only set default if value is empty
+        elif col == 2 and not value:  # Only set default if value is empty
             tablespace_combo = self.indexes_grid.get_cell_widget(row, col)
             if tablespace_combo and isinstance(tablespace_combo, QComboBox):
                 # Get current owner's default index tablespace
@@ -646,6 +740,94 @@ class TableDialog(QDialog):
                         index = tablespace_combo.findText(owner.default_index_tablespace)
                         if index >= 0:
                             tablespace_combo.setCurrentIndex(index)
+
+    def _add_foreign_key(self):
+        """Add a new foreign key row with auto-generated name."""
+        from ..models.base import Key
+
+        # Get current table name
+        table_name = self.name_edit.text().strip()
+        if not table_name:
+            QMessageBox.warning(self, "Table Name Required",
+                              "Please enter a table name before adding keys.")
+            return
+
+        # Create temporary table with existing keys from grid to get correct count
+        from ..models import Table as TempTable
+        temp_table = TempTable(name=table_name, owner=self.owner_combo.currentText())
+
+        # Add existing keys from grid to temp table for counting
+        for row in range(self.keys_grid.table.rowCount()):
+            key_type_widget = self.keys_grid.get_cell_widget(row, 1)
+            if key_type_widget and isinstance(key_type_widget, QComboBox):
+                key_type = key_type_widget.currentData()
+                name_item = self.keys_grid.get_cell_item(row, 0)
+                name = name_item.text() if name_item else ""
+
+                if name and key_type:
+                    temp_key = Key(name=name, columns=[], key_type=key_type)
+                    temp_table.add_key(temp_key)
+
+        # Use naming engine to generate name with correct numbering
+        generated_name = self.naming_engine.generate_foreign_key_name(
+            table_name, [], None, temp_table
+        )
+
+        # Add row with FK type pre-selected
+        row_data = [
+            generated_name,  # Name
+            Key.FOREIGN,     # Type (will be matched by combobox_data)
+            "",              # Columns
+            "",              # Referenced Table
+            "",              # Referenced Columns
+            ""               # On Delete
+        ]
+
+        self.keys_grid.add_row(row_data)
+
+    def _add_unique_key(self):
+        """Add a new unique key row with auto-generated name."""
+        from ..models.base import Key
+
+        # Get current table name
+        table_name = self.name_edit.text().strip()
+        if not table_name:
+            QMessageBox.warning(self, "Table Name Required",
+                              "Please enter a table name before adding keys.")
+            return
+
+        # Create temporary table with existing keys from grid to get correct count
+        from ..models import Table as TempTable
+        temp_table = TempTable(name=table_name, owner=self.owner_combo.currentText())
+
+        # Add existing keys from grid to temp table for counting
+        for row in range(self.keys_grid.table.rowCount()):
+            key_type_widget = self.keys_grid.get_cell_widget(row, 1)
+            if key_type_widget and isinstance(key_type_widget, QComboBox):
+                key_type = key_type_widget.currentData()
+                name_item = self.keys_grid.get_cell_item(row, 0)
+                name = name_item.text() if name_item else ""
+
+                if name and key_type:
+                    temp_key = Key(name=name, columns=[], key_type=key_type)
+                    temp_table.add_key(temp_key)
+
+        # Use naming engine to generate name with correct numbering
+        generated_name = self.naming_engine.generate_unique_key_name(
+            table_name, [], temp_table
+        )
+
+        # Add row with UNIQUE type pre-selected
+        row_data = [
+            generated_name,  # Name
+            Key.UNIQUE,      # Type (will be matched by combobox_data)
+            "",              # Columns
+            "",              # Referenced Table (not used for UK)
+            "",              # Referenced Columns (not used for UK)
+            ""               # On Delete (not used for UK)
+        ]
+
+        self.keys_grid.add_row(row_data)
 
     def _connect_signals(self):
         """Connect signals."""

@@ -1,0 +1,46 @@
+{#
+K2 Designer - Naming Rules Template
+
+This template defines how database object names are automatically generated.
+You can customize these rules for your project's naming conventions.
+
+Available variables:
+  - table_name: The table name (e.g., "EMPLOYEES")
+  - owner: The owner/schema name (e.g., "HR")
+  - key_type: Type of key ("PRIMARY", "FOREIGN", "UNIQUE")
+  - index_type: Type of index (currently just "INDEX")
+  - columns: List of column names involved
+  - number: Sequential number for this type of constraint (1, 2, 3...)
+  - referenced_table: For foreign keys, the referenced table name
+
+Functions available:
+  - abbreviate(text, length): Abbreviate text to max length
+  - first_column(): Get first column name
+  - join_columns(separator): Join column names with separator
+#}
+
+{# Primary Key naming rule #}
+{% macro primary_key(table_name, columns, number) -%}
+{{ table_name }}_PK
+{%- endmacro %}
+
+{# Foreign Key naming rule #}
+{% macro foreign_key(table_name, columns, number, referenced_table) -%}
+{{ table_name }}_FK{{ number }}
+{%- endmacro %}
+
+{# Unique Key naming rule #}
+{% macro unique_key(table_name, columns, number) -%}
+{{ table_name }}_UK{{ number }}
+{%- endmacro %}
+
+{# Index naming rule #}
+{% macro index_name(table_name, columns, number) -%}
+{{ table_name }}_I{{ number }}
+{%- endmacro %}
+
+{# Check constraint naming rule (for future use) #}
+{% macro check_constraint(table_name, columns, number) -%}
+{{ table_name }}_CHK{{ number }}
+{%- endmacro %}
+
