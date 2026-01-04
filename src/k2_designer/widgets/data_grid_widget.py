@@ -131,6 +131,7 @@ class DataGridWidget(QWidget):
         self._add_callback: Optional[Callable] = None
         self._edit_callback: Optional[Callable] = None
         self._remove_callback: Optional[Callable] = None
+        self._refresh_callback: Optional[Callable] = None
         self._cell_setup_callback: Optional[Callable] = None
 
         # UI Components
@@ -480,6 +481,14 @@ class DataGridWidget(QWidget):
 
         toolbar_layout.addStretch()
 
+        # Add refresh data button
+        refresh_btn = QPushButton("⟳")
+        refresh_btn.setToolTip("Refresh Data")
+        refresh_btn.setFixedSize(28, 28)
+        refresh_btn.setStyleSheet("font-weight: bold; font-size: 16px;")
+        refresh_btn.clicked.connect(self._on_refresh)
+        toolbar_layout.addWidget(refresh_btn)
+
         # Add clear filters button at the end if filters are enabled
         if self._show_filters:
             clear_filters_btn = QPushButton("⊗")
@@ -575,6 +584,17 @@ class DataGridWidget(QWidget):
                             if cell_value != "false":
                                 show_row = False
                                 break
+                        # Special handling for Has Index / No Index
+                        elif filter_value == "Has Index":
+                            if cell_value != "true":
+                                show_row = False
+                                break
+                        elif filter_value == "No Index":
+                            if cell_value != "true":  # If it's not checked (false or empty)
+                                pass  # Show the row
+                            else:
+                                show_row = False
+                                break
                         # Special handling for "No Domain" / "No Stereotype"
                         elif filter_value in ["No Domain", "No Stereotype", "No Value"]:
                             if cell_value:
@@ -619,6 +639,14 @@ class DataGridWidget(QWidget):
             self._remove_callback()
         else:
             self.remove_selected_rows()
+
+    def _on_refresh(self):
+        """Handle refresh button click."""
+        if self._refresh_callback:
+            self._refresh_callback()
+        else:
+            # Default behavior: emit data_changed signal to notify listeners
+            self.data_changed.emit()
 
     def add_row(self, data: Optional[List[Any]] = None) -> int:
         """
@@ -1191,6 +1219,10 @@ class DataGridWidget(QWidget):
     def set_remove_callback(self, callback: Callable):
         """Set custom callback for remove button."""
         self._remove_callback = callback
+
+    def set_refresh_callback(self, callback: Callable):
+        """Set custom callback for refresh button."""
+        self._refresh_callback = callback
 
     def set_cell_setup_callback(self, callback: Callable):
         """Set custom callback for setting up cells (called after default setup)."""

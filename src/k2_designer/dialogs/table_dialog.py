@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
                              QTabWidget, QWidget, QColorDialog)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
+import copy
 
 from ..models import Table, Column
 from ..models.base import Stereotype, StereotypeType
@@ -50,6 +51,11 @@ class TableDialog(QDialog):
         
         # Initialize naming rules engine
         self.naming_engine = NamingRulesEngine()
+
+        # Backup original state for Cancel functionality
+        self._original_table_state = None
+        if self.table:
+            self._backup_table_state()
 
         self._setup_ui()
         self._load_data()
@@ -78,6 +84,42 @@ class TableDialog(QDialog):
                 if col_name:
                     columns.append(col_name)
         return columns
+
+    def _backup_table_state(self):
+        """Backup the original table state for Cancel functionality."""
+        if not self.table:
+            return
+
+        # Deep copy all table attributes to preserve original state
+        self._original_table_state = {
+            'name': self.table.name,
+            'owner': self.table.owner,
+            'tablespace': self.table.tablespace,
+            'stereotype': self.table.stereotype,
+            'color': self.table.color,
+            'editionable': self.table.editionable,
+            'comment': self.table.comment,
+            'columns': copy.deepcopy(self.table.columns),
+            'keys': copy.deepcopy(self.table.keys),
+            'indexes': copy.deepcopy(self.table.indexes)
+        }
+
+    def _restore_table_state(self):
+        """Restore the original table state when Cancel is clicked."""
+        if not self.table or not self._original_table_state:
+            return
+
+        # Restore all attributes from backup
+        self.table.name = self._original_table_state['name']
+        self.table.owner = self._original_table_state['owner']
+        self.table.tablespace = self._original_table_state['tablespace']
+        self.table.stereotype = self._original_table_state['stereotype']
+        self.table.color = self._original_table_state['color']
+        self.table.editionable = self._original_table_state['editionable']
+        self.table.comment = self._original_table_state['comment']
+        self.table.columns = copy.deepcopy(self._original_table_state['columns'])
+        self.table.keys = copy.deepcopy(self._original_table_state['keys'])
+        self.table.indexes = copy.deepcopy(self._original_table_state['indexes'])
 
     def _get_columns_for_table(self, table_name: str):
         """Get list of columns from a specific table in the project."""
@@ -200,6 +242,12 @@ class TableDialog(QDialog):
         indexes_tab = QWidget()
         self._setup_indexes_tab(indexes_tab)
         self.tab_widget.addTab(indexes_tab, "Indexes")
+
+        # Track previous tab for smart syncing
+        self._previous_tab_index = 0
+
+        # Connect tab change signal to refresh indexes when switching tabs
+        self.tab_widget.currentChanged.connect(self._on_tab_changed)
 
         layout.addWidget(self.tab_widget)
         
@@ -517,6 +565,14 @@ class TableDialog(QDialog):
                 filter_type="combobox",
                 filter_options={'items': ['All', 'CASCADE', 'SET NULL', 'NO ACTION', 'RESTRICT']}
             ),
+            ColumnConfig(
+                name="Index",
+                width=60,
+                resize_mode=QHeaderView.ResizeMode.Fixed,
+                editor_type="checkbox_centered",
+                filter_type="combobox",
+                filter_options={'items': ['All', 'Has Index', 'No Index']}
+            ),
         ]
 
         # Configure the grid
@@ -715,13 +771,28 @@ class TableDialog(QDialog):
             columns_str = ", ".join(key.columns) if key.columns else ""
             ref_columns_str = ", ".join(key.referenced_columns) if key.referenced_columns else ""
 
+            # Calculate has_index based on associated_index_guid
+            # The GUID is the single source of truth - don't automatically re-link by columns
+            has_index = False
+            if key.associated_index_guid:
+                # Check if the associated index still exists
+                for idx in self.table.indexes:
+                    if idx.guid == key.associated_index_guid:
+                        has_index = True
+                        break
+
+                # If index doesn't exist anymore, clear the stale GUID
+                if not has_index:
+                    key.associated_index_guid = None
+
             row_data = [
                 key.name,
                 key.key_type,  # Will match the data value in combobox
                 columns_str,
                 key.referenced_table or "",
                 ref_columns_str,
-                key.on_delete or ""
+                key.on_delete or "",
+                has_index  # Calculated from existing indexes
             ]
 
             self.keys_grid.add_row(row_data)
@@ -824,10 +895,10 @@ class TableDialog(QDialog):
                 data_type_item = self.columns_grid.get_cell_item(row, 1)
                 if data_type_item:
                     data_type_item.setText(domain.data_type)
-                
+
                 # Make data type non-editable
                 self._update_data_type_editability(row, domain_name)
-    
+
     def _update_data_type_editability(self, row, domain_name):
         """Update whether the data type cell is editable based on domain selection."""
         data_type_item = self.columns_grid.get_cell_item(row, 1)
@@ -1128,6 +1199,122 @@ class TableDialog(QDialog):
                 # Default color for empty stereotype
                 self._set_color("#464646")
     
+    def _on_tab_changed(self, index):
+        """Handle tab change event to sync between Keys and Indexes tabs."""
+        # Check if we're switching to the Keys tab (index 2: Basic=0, Columns=1, Keys=2, Indexes=3)
+        if index == 2:  # Switching TO Keys tab
+            # Always sync keys from indexes when entering Keys tab
+            # This updates checkboxes based on what indexes exist
+            self._sync_keys_from_indexes()
+        # Check if we're switching to the Indexes tab
+        elif index == 3:  # Switching TO Indexes tab
+            # Only sync indexes from keys if we're coming FROM the Keys tab
+            # (This prevents recreating indexes when just navigating between other tabs)
+            if self._previous_tab_index == 2:  # Coming from Keys tab
+                # First, commit any user changes from Keys grid to table.keys
+                self._update_table_keys()
+                # Then sync indexes based on updated keys
+                self._sync_indexes_from_keys()
+
+        # Remember current tab for next time
+        self._previous_tab_index = index
+
+    def _sync_indexes_from_keys(self):
+        """Sync indexes grid to reflect indexes created/removed by key checkboxes."""
+        if not self.table:
+            return
+
+        try:
+            from ..models.base import Key, Index
+
+            # Read directly from table.keys, not from the grid
+            # This ensures we get the latest state after _sync_keys_from_indexes() runs
+            expected_key_indexes = []
+
+            for key in self.table.keys:
+                # Check if this key should have an associated index
+                has_index = key.associated_index_guid is not None
+
+                if has_index and key.columns:
+                    # This key should have an index
+                    existing_index = None
+
+                    # Find the index by GUID
+                    if key.associated_index_guid:
+                        for idx in self.table.indexes:
+                            if idx.guid == key.associated_index_guid:
+                                existing_index = idx
+                                break
+
+                    if existing_index:
+                        # Update existing index columns to match key
+                        existing_index.columns = key.columns.copy()
+                        expected_key_indexes.append(existing_index)
+                    else:
+                        # Create new index with matching columns
+                        index_name = self._generate_index_name_for_key(key)
+
+                        new_index = Index(
+                            name=index_name,
+                            columns=key.columns.copy(),
+                            tablespace=None
+                        )
+                        self.table.add_index(new_index)
+                        key.associated_index_guid = new_index.guid  # Link them
+                        expected_key_indexes.append(new_index)
+
+            # Remove indexes for keys that no longer have associated_index_guid
+            # (already handled by the fact that we only process keys with has_index=True above)
+
+            # Reload the indexes grid to show current state
+            self._load_indexes()
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"⚠ Error syncing indexes from keys: {e}")
+
+    def _sync_keys_from_indexes(self):
+        """Sync keys grid to reflect indexes that were created/deleted manually in Indexes tab."""
+        if not self.table:
+            return
+
+        try:
+            # For each key, check if its associated index still exists
+            # Also check if a manually created index matches the key's columns
+
+            for key in self.table.keys:
+                # Case 1: Key has associated_index_guid but index was deleted
+                if key.associated_index_guid:
+                    index_exists = any(idx.guid == key.associated_index_guid for idx in self.table.indexes)
+                    if not index_exists:
+                        # Index was deleted - clear the link
+                        key.associated_index_guid = None
+
+                # Case 2: Key has no associated index, but a matching index was created manually
+                if not key.associated_index_guid and key.columns:
+                    key_columns_set = set(key.columns)
+                    for idx in self.table.indexes:
+                        if idx.columns and set(idx.columns) == key_columns_set:
+                            # Found a matching index - check if it's already linked to another key
+                            is_already_linked = any(
+                                k.associated_index_guid == idx.guid
+                                for k in self.table.keys
+                                if k != key
+                            )
+                            if not is_already_linked:
+                                # Link this index to the key
+                                key.associated_index_guid = idx.guid
+                                break
+
+            # Reload the keys grid to show updated checkbox states
+            self._load_keys()
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"⚠ Error syncing keys from indexes: {e}")
+
     def _on_ok(self):
         """Handle OK button click."""
         if not self._validate_form():
@@ -1186,6 +1373,15 @@ class TableDialog(QDialog):
 
         self.accept()
     
+    def reject(self):
+        """Handle Cancel button click - restore original table state."""
+        if self.is_edit_mode:
+            # Restore the original table state (undo any changes made during editing)
+            self._restore_table_state()
+
+        # Call parent's reject to close the dialog
+        super().reject()
+
     def _update_table_columns(self):
         """Update table columns from the grid widget."""
         if not self.table:
@@ -1226,7 +1422,7 @@ class TableDialog(QDialog):
     def _update_table_keys(self):
         """Update table keys from the keys grid widget."""
         try:
-            from ..models.base import Key
+            from ..models.base import Key, Index
 
             if not self.table:
                 return
@@ -1237,11 +1433,14 @@ class TableDialog(QDialog):
             # Clear existing keys
             self.table.keys.clear()
 
+            # Track which indexes are associated with keys (to avoid deletion later)
+            key_associated_indexes = set()
+
             # Add keys from grid widget
             all_data = self.keys_grid.get_all_data()
 
             for idx, row_data in enumerate(all_data):
-                name, key_type, columns_str, ref_table, ref_columns_str, on_delete = row_data
+                name, key_type, columns_str, ref_table, ref_columns_str, on_delete, has_index = row_data
 
                 # Convert to strings first
                 name = str(name) if name else ""
@@ -1249,6 +1448,7 @@ class TableDialog(QDialog):
                 ref_table = str(ref_table) if ref_table else ""
                 ref_columns_str = str(ref_columns_str) if ref_columns_str else ""
                 on_delete = str(on_delete) if on_delete else ""
+                has_index = bool(has_index)
 
                 # Parse columns
                 columns = [c.strip() for c in columns_str.split(",") if c.strip()] if columns_str else []
@@ -1271,11 +1471,95 @@ class TableDialog(QDialog):
                         referenced_columns=ref_columns,
                         on_delete=on_delete
                     )
+
+                    # Manage associated index based on GUID tracking
+                    if has_index:
+                        existing_index = None
+
+                        # First, try to find associated index by GUID from previous key
+                        # (We need to check if this key already existed and had an associated index)
+                        old_key = next((k for k in self.table.keys if k.name == key.name), None)
+                        if old_key and old_key.associated_index_guid:
+                            # Find the index by GUID
+                            for idx in self.table.indexes:
+                                if idx.guid == old_key.associated_index_guid:
+                                    existing_index = idx
+                                    key.associated_index_guid = idx.guid  # Preserve the link
+                                    break
+
+                        # If not found by GUID, try to find by matching columns
+                        if not existing_index:
+                            key_columns_set = set(columns)
+                            for idx in self.table.indexes:
+                                if idx.columns and set(idx.columns) == key_columns_set:
+                                    existing_index = idx
+                                    key.associated_index_guid = idx.guid  # Link them
+                                    break
+
+                        if existing_index:
+                            # Update existing index columns to match key columns
+                            existing_index.columns = columns.copy()
+                            key_associated_indexes.add(existing_index.guid)
+                        else:
+                            # Create new index with matching columns
+                            index_name = self._generate_index_name_for_key(key)
+
+                            index = Index(
+                                name=index_name,
+                                columns=columns.copy(),
+                                tablespace=None  # User can set this in Indexes tab if needed
+                            )
+                            self.table.add_index(index)
+                            key.associated_index_guid = index.guid  # Store the link
+                            key_associated_indexes.add(index.guid)
+                    else:
+                        # If has_index is False, remove associated index if it exists
+                        old_key = next((k for k in self.table.keys if k.name == key.name), None)
+                        if old_key and old_key.associated_index_guid:
+                            # Find and remove the associated index by GUID
+                            self.table.indexes = [
+                                idx for idx in self.table.indexes
+                                if idx.guid != old_key.associated_index_guid
+                            ]
+                        key.associated_index_guid = None  # Clear the link
+
                     self.table.add_key(key)
 
         except Exception as e:
             import traceback
             traceback.print_exc()
+
+    def _generate_index_name_for_key(self, key):
+        """Generate an index name for a key based on naming rules engine."""
+        from ..controllers.naming_rules_engine import NamingRulesEngine
+
+        # Use the naming rules engine to generate an appropriate index name
+        table_name = self.table.name if self.table else ""
+
+        try:
+            # Initialize naming rules engine
+            naming_engine = NamingRulesEngine()
+
+            # Generate index name using the naming rules template
+            index_name = naming_engine.generate_index_name(
+                table_name=table_name,
+                columns=key.columns,
+                table=self.table,
+                owner=self.table.owner if self.table else None
+            )
+
+            return index_name
+
+        except Exception as e:
+            print(f"⚠ Error generating index name with naming engine: {e}")
+            # Fallback to simple pattern if naming engine fails
+            from ..models.base import Key
+            if key.key_type == Key.PRIMARY:
+                return f"{table_name}_PK_IDX"
+            elif key.key_type == Key.FOREIGN:
+                return f"{key.name}_IDX"
+            else:  # UNIQUE
+                return f"{key.name}_IDX"
 
 
     def _update_table_indexes(self):
@@ -1288,10 +1572,28 @@ class TableDialog(QDialog):
         # Commit any active editor before reading data
         self.indexes_grid.commit_active_editor()
 
+        # Preserve indexes that are associated with keys (by GUID)
+        # These were created by _update_table_keys() and should not be removed
+        key_associated_index_guids = set()
+        key_associated_indexes = []
+
+        for key in self.table.keys:
+            if key.associated_index_guid:
+                key_associated_index_guids.add(key.associated_index_guid)
+                # Find the index by GUID
+                for idx in self.table.indexes:
+                    if idx.guid == key.associated_index_guid:
+                        key_associated_indexes.append(idx)
+                        break
+
         # Clear existing indexes
         self.table.indexes.clear()
 
-        # Add indexes from grid widget
+        # Re-add the key-associated indexes first
+        for idx in key_associated_indexes:
+            self.table.indexes.append(idx)
+
+        # Add indexes from grid widget (but skip if GUID already exists)
         for row_data in self.indexes_grid.get_all_data():
             name, columns_str, tablespace = row_data
 
@@ -1307,13 +1609,18 @@ class TableDialog(QDialog):
             tablespace = tablespace.strip() if tablespace and tablespace.strip() else None
 
             # Only add indexes with name and columns
+            # Skip if this index is already in the list (by checking if it's a key-associated index)
             if name.strip() and columns:
-                index = Index(
-                    name=name.strip(),
-                    columns=columns,
-                    tablespace=tablespace
-                )
-                self.table.add_index(index)
+                # Check if an index with this name already exists (could be key-associated)
+                index_exists = any(idx.name == name.strip() for idx in self.table.indexes)
+
+                if not index_exists:
+                    index = Index(
+                        name=name.strip(),
+                        columns=columns,
+                        tablespace=tablespace
+                    )
+                    self.table.add_index(index)
 
     def _refresh_active_diagram(self):
         """Refresh the active diagram to show updated table structure."""

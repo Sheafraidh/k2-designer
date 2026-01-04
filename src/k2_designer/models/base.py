@@ -156,6 +156,7 @@ class Key:
     def __init__(self, name: str, columns: List[str], key_type: str = UNIQUE,
                  referenced_table: Optional[str] = None, referenced_columns: Optional[List[str]] = None,
                  on_delete: Optional[str] = None, on_update: Optional[str] = None,
+                 associated_index_guid: Optional[str] = None,
                  guid: Optional[str] = None):
         self.name = name
         self.columns = columns
@@ -165,6 +166,7 @@ class Key:
         self.referenced_columns = referenced_columns or []
         self.on_delete = on_delete  # CASCADE, SET NULL, NO ACTION, etc.
         self.on_update = on_update  # CASCADE, SET NULL, NO ACTION, etc.
+        self.associated_index_guid = associated_index_guid  # GUID of associated index
         self.guid = guid or str(uuid.uuid4())
 
     def to_dict(self) -> dict:
@@ -176,7 +178,8 @@ class Key:
             'referenced_table': self.referenced_table,
             'referenced_columns': self.referenced_columns,
             'on_delete': self.on_delete,
-            'on_update': self.on_update
+            'on_update': self.on_update,
+            'associated_index_guid': self.associated_index_guid
         }
     
     @classmethod
@@ -189,6 +192,7 @@ class Key:
             referenced_columns=data.get('referenced_columns', []),
             on_delete=data.get('on_delete'),
             on_update=data.get('on_update'),
+            associated_index_guid=data.get('associated_index_guid'),
             guid=data.get('guid')
         )
 
