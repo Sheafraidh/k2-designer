@@ -647,8 +647,10 @@ class DataGridWidget(QWidget):
                 self._setup_checkbox_centered_cell(row, col_idx, bool(value))
 
             elif col.editor_type == "combobox":
+                editable = col.editor_options.get('editable', False)
                 self._setup_combobox_cell(row, col_idx, str(value),
-                                         col.editor_options.get('items', []))
+                                         col.editor_options.get('items', []),
+                                         editable=editable)
 
             elif col.editor_type == "combobox_data":
                 items = col.editor_options.get('items', [])
@@ -696,12 +698,29 @@ class DataGridWidget(QWidget):
         # Store checkbox reference for easy access
         widget.checkbox = checkbox
 
-    def _setup_combobox_cell(self, row: int, col: int, value: str, items: List[str]):
-        """Setup a combobox cell."""
+    def _setup_combobox_cell(self, row: int, col: int, value: str, items: List[str], editable: bool = False):
+        """Setup a combobox cell with optional editability."""
         combo = QComboBox()
+        combo.setEditable(editable)
+
+        if editable:
+            # Enable autocomplete for editable comboboxes
+            combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+            combo.completer().setCompletionMode(combo.completer().CompletionMode.PopupCompletion)
+            combo.completer().setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+            # Match anywhere in the string, not just at the start
+            combo.completer().setFilterMode(Qt.MatchFlag.MatchContains)
+
         combo.addItems(items)
-        if value in items:
-            combo.setCurrentText(value)
+
+        if value:
+            # For editable comboboxes, set the text directly
+            if editable:
+                combo.setCurrentText(value)
+            # For non-editable, find in items
+            elif value in items:
+                combo.setCurrentText(value)
+
         self.table.setCellWidget(row, col, combo)
 
     def _setup_combobox_data_cell(self, row: int, col: int, value: str, items: List[str], items_data: List[str]):
@@ -964,8 +983,10 @@ class DataGridWidget(QWidget):
                 self._setup_checkbox_centered_cell(row, col_idx, bool(value))
 
             elif col.editor_type == "combobox":
+                editable = col.editor_options.get('editable', False)
                 self._setup_combobox_cell(row, col_idx, str(value),
-                                         col.editor_options.get('items', []))
+                                         col.editor_options.get('items', []),
+                                         editable=editable)
 
             elif col.editor_type == "combobox_data":
                 items = col.editor_options.get('items', [])
@@ -1022,12 +1043,16 @@ class DataGridWidget(QWidget):
 
                 # Check for combobox widget
                 if isinstance(widget, QComboBox):
-                    # Return currentData() if available, otherwise currentText()
-                    current_data = widget.currentData()
-                    if current_data is not None:
-                        data.append(current_data)
-                    else:
+                    # For editable comboboxes, always use currentText() (user can type custom values)
+                    # For non-editable, prefer currentData() if available, otherwise currentText()
+                    if widget.isEditable():
                         data.append(widget.currentText())
+                    else:
+                        current_data = widget.currentData()
+                        if current_data is not None:
+                            data.append(current_data)
+                        else:
+                            data.append(widget.currentText())
                     continue
 
             # Use item data for text/checkbox cells

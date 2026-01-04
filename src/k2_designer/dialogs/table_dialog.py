@@ -55,9 +55,122 @@ class TableDialog(QDialog):
         self._load_data()
         self._connect_signals()
     
+    def _get_available_tables(self):
+        """Get list of available tables from the project."""
+        tables = []
+        if self.project and hasattr(self.project, 'tables'):
+            for table in self.project.tables:
+                tables.append(f"{table.owner}.{table.name}")
+        return tables
+
+    def _get_available_columns(self):
+        """Get list of columns from current table."""
+        columns = []
+        # Check if columns_grid is configured (table widget exists)
+        if not hasattr(self, 'columns_grid') or not hasattr(self.columns_grid, 'table') or self.columns_grid.table is None:
+            return columns
+
+        # Get columns from the grid (includes unsaved changes)
+        for row in range(self.columns_grid.table.rowCount()):
+            name_item = self.columns_grid.get_cell_item(row, 0)
+            if name_item:
+                col_name = name_item.text().strip()
+                if col_name:
+                    columns.append(col_name)
+        return columns
+
+    def _get_columns_for_table(self, table_name: str):
+        """Get list of columns from a specific table in the project."""
+        columns = []
+        if not self.project or not hasattr(self.project, 'tables'):
+            return columns
+
+        # Find the table in the project
+        for table in self.project.tables:
+            table_full_name = f"{table.owner}.{table.name}"
+            # Match by full name or just table name
+            if table_full_name == table_name or table.name == table_name:
+                # Get columns from the table
+                for col in table.columns:
+                    columns.append(col.name)
+                break
+
+        return columns
+
+    def _connect_ref_table_signals(self):
+        """Connect Referenced Table combobox signals to update Referenced Columns."""
+        from PyQt6.QtWidgets import QComboBox
+        from ..models.base import Key
+
+        if not hasattr(self, 'keys_grid') or not hasattr(self.keys_grid, 'table') or not self.keys_grid.table:
+            return
+
+        for row in range(self.keys_grid.table.rowCount()):
+            # Get widgets for this row
+            key_type_widget = self.keys_grid.get_cell_widget(row, 1)
+            ref_table_widget = self.keys_grid.get_cell_widget(row, 3)
+            ref_cols_widget = self.keys_grid.get_cell_widget(row, 4)
+
+            # Check current key type and clear Referenced fields if not FOREIGN
+            if isinstance(key_type_widget, QComboBox):
+                key_type = key_type_widget.currentData()
+
+                # For PRIMARY and UNIQUE keys, ensure Referenced fields are empty
+                if key_type != Key.FOREIGN:
+                    if isinstance(ref_table_widget, QComboBox):
+                        # Only clear if it has a value
+                        if ref_table_widget.currentText():
+                            ref_table_widget.setCurrentText("")
+
+                    if isinstance(ref_cols_widget, QComboBox):
+                        # Only clear if it has a value
+                        if ref_cols_widget.currentText():
+                            ref_cols_widget.setCurrentText("")
+
+                # Disconnect any existing key type change connections
+                try:
+                    key_type_widget.currentIndexChanged.disconnect()
+                except:
+                    pass
+
+                # Connect to clear Referenced fields when changing to non-FK type
+                if isinstance(ref_table_widget, QComboBox) and isinstance(ref_cols_widget, QComboBox):
+                    key_type_widget.currentIndexChanged.connect(
+                        lambda idx, r=row, rt=ref_table_widget, rc=ref_cols_widget: (
+                            rt.setCurrentText("") if self.keys_grid.get_cell_widget(r, 1).currentData() != Key.FOREIGN else None,
+                            rc.setCurrentText("") if self.keys_grid.get_cell_widget(r, 1).currentData() != Key.FOREIGN else None
+                        )
+                    )
+
+            # Connect Referenced Table changes for FK keys
+            if isinstance(ref_table_widget, QComboBox) and isinstance(ref_cols_widget, QComboBox):
+                # Disconnect any existing connections
+                try:
+                    ref_table_widget.currentTextChanged.disconnect()
+                except:
+                    pass
+
+                # Connect signal to update Referenced Columns
+                def make_handler(ref_cols_combo):
+                    def handler(text):
+                        if text:
+                            ref_columns = self._get_columns_for_table(text)
+                            current_value = ref_cols_combo.currentText()
+                            ref_cols_combo.clear()
+                            ref_cols_combo.addItems(ref_columns)
+                            # Clear the selection since we're changing tables
+                            ref_cols_combo.setCurrentText("")
+                    return handler
+
+                ref_table_widget.currentTextChanged.connect(make_handler(ref_cols_widget))
+
     def _setup_ui(self):
         """Setup the UI components."""
-        self.setWindowTitle("Edit Table" if self.is_edit_mode else "Add Table")
+        if self.is_edit_mode:
+            title = f"Edit Table - {self.table.owner}.{self.table.name}"
+        else:
+            title = "Add Table"
+        self.setWindowTitle(title)
         self.setModal(True)
         self.resize(1000, 600)  # Larger size to accommodate all columns comfortably
 
@@ -341,6 +454,15 @@ class TableDialog(QDialog):
 
         self.keys_grid = DataGridWidget()
 
+        # Get available tables and columns for autocomplete
+        available_tables = self._get_available_tables()
+
+        # Get columns from the table object if in edit mode, otherwise empty list
+        available_columns = []
+        if self.table and hasattr(self.table, 'columns'):
+            available_columns = [col.name for col in self.table.columns]
+
+
         # Define columns for keys grid
         columns = [
             ColumnConfig(
@@ -366,21 +488,24 @@ class TableDialog(QDialog):
                 name="Columns",
                 width=200,
                 resize_mode=QHeaderView.ResizeMode.Stretch,
-                editor_type="text",
+                editor_type="combobox",
+                editor_options={'items': available_columns, 'editable': True},
                 filter_type="text"
             ),
             ColumnConfig(
                 name="Referenced Table",
                 width=150,
                 resize_mode=QHeaderView.ResizeMode.Interactive,
-                editor_type="text",
+                editor_type="combobox",
+                editor_options={'items': available_tables, 'editable': True},
                 filter_type="text"
             ),
             ColumnConfig(
                 name="Referenced Columns",
                 width=150,
                 resize_mode=QHeaderView.ResizeMode.Interactive,
-                editor_type="text",
+                editor_type="combobox",
+                editor_options={'items': available_columns, 'editable': True},
                 filter_type="text"
             ),
             ColumnConfig(
@@ -421,6 +546,9 @@ class TableDialog(QDialog):
         # Set callback to auto-generate key names
         self.keys_grid.set_cell_setup_callback(self._setup_key_cell)
 
+        # Connect when rows are added
+        self.keys_grid.row_added.connect(lambda: self._connect_ref_table_signals())
+
         layout.addWidget(self.keys_grid)
 
         # Info label
@@ -453,6 +581,11 @@ class TableDialog(QDialog):
                     tablespaces.add(owner.default_index_tablespace)
             tablespace_items.extend(sorted(tablespaces))
 
+        # Get columns from the table object if in edit mode, otherwise empty list
+        available_columns = []
+        if self.table and hasattr(self.table, 'columns'):
+            available_columns = [col.name for col in self.table.columns]
+
         # Define columns for indexes grid
         columns = [
             ColumnConfig(
@@ -466,7 +599,8 @@ class TableDialog(QDialog):
                 name="Columns",
                 width=300,
                 resize_mode=QHeaderView.ResizeMode.Stretch,
-                editor_type="text",
+                editor_type="combobox",
+                editor_options={'items': available_columns, 'editable': True},
                 filter_type="text"
             ),
             ColumnConfig(
@@ -592,6 +726,55 @@ class TableDialog(QDialog):
 
             self.keys_grid.add_row(row_data)
 
+        # After loading all keys, update the Columns comboboxes with current table's columns
+        available_columns = self._get_available_columns()
+
+        from ..models.base import Key
+
+        for row in range(self.keys_grid.table.rowCount()):
+            # Update Columns combobox (col 2)
+            columns_widget = self.keys_grid.get_cell_widget(row, 2)
+            if isinstance(columns_widget, QComboBox):
+                current_value = columns_widget.currentText()
+                columns_widget.clear()
+                columns_widget.addItems(available_columns)
+                if current_value:
+                    columns_widget.setCurrentText(current_value)
+
+            # Get the key type for this row
+            key_type_widget = self.keys_grid.get_cell_widget(row, 1)
+            key_type = key_type_widget.currentData() if isinstance(key_type_widget, QComboBox) else None
+
+            # Only update Referenced Table and Referenced Columns for FOREIGN keys
+            if key_type == Key.FOREIGN:
+                # Update Referenced Columns combobox (col 4)
+                ref_cols_widget = self.keys_grid.get_cell_widget(row, 4)
+                if isinstance(ref_cols_widget, QComboBox):
+                    # Get the referenced table
+                    ref_table_widget = self.keys_grid.get_cell_widget(row, 3)
+                    if isinstance(ref_table_widget, QComboBox):
+                        ref_table = ref_table_widget.currentText()
+                        if ref_table:
+                            ref_columns = self._get_columns_for_table(ref_table)
+                            current_value = ref_cols_widget.currentText()
+                            ref_cols_widget.clear()
+                            ref_cols_widget.addItems(ref_columns)
+                            if current_value:
+                                ref_cols_widget.setCurrentText(current_value)
+            else:
+                # For PRIMARY and UNIQUE keys, clear Referenced Table and Referenced Columns
+                ref_table_widget = self.keys_grid.get_cell_widget(row, 3)
+                if isinstance(ref_table_widget, QComboBox):
+                    ref_table_widget.setCurrentText("")
+
+                ref_cols_widget = self.keys_grid.get_cell_widget(row, 4)
+                if isinstance(ref_cols_widget, QComboBox):
+                    ref_cols_widget.setCurrentText("")
+
+
+        # Connect Referenced Table signals after loading all keys
+        self._connect_ref_table_signals()
+
     def _load_indexes(self):
         """Load indexes into the indexes grid."""
         if not self.table:
@@ -612,6 +795,19 @@ class TableDialog(QDialog):
             ]
 
             self.indexes_grid.add_row(row_data)
+
+        # After loading all indexes, update the Columns comboboxes with current table's columns
+        available_columns = self._get_available_columns()
+
+        for row in range(self.indexes_grid.table.rowCount()):
+            # Update Columns combobox (col 1)
+            columns_widget = self.indexes_grid.get_cell_widget(row, 1)
+            if isinstance(columns_widget, QComboBox):
+                current_value = columns_widget.currentText()
+                columns_widget.clear()
+                columns_widget.addItems(available_columns)
+                if current_value:
+                    columns_widget.setCurrentText(current_value)
 
     def _on_domain_changed(self, row, domain_name):
         """Handle domain selection change for a column."""
@@ -957,6 +1153,12 @@ class TableDialog(QDialog):
             
             # Update columns
             self._update_table_columns()
+
+            # Update keys
+            self._update_table_keys()
+
+            # Update indexes
+            self._update_table_indexes()
         else:
             # Create new table
             self.table = Table(
@@ -971,9 +1173,16 @@ class TableDialog(QDialog):
             
             # Add columns
             self._update_table_columns()
-        
+
+            # Add keys
+            self._update_table_keys()
+
+            # Add indexes
+            self._update_table_indexes()
+
         # Refresh active diagram if it exists
         self._refresh_active_diagram()
+
 
         self.accept()
     
@@ -1016,50 +1225,58 @@ class TableDialog(QDialog):
 
     def _update_table_keys(self):
         """Update table keys from the keys grid widget."""
-        from ..models.base import Key
+        try:
+            from ..models.base import Key
 
-        if not self.table:
-            return
+            if not self.table:
+                return
 
-        # Commit any active editor before reading data
-        self.keys_grid.commit_active_editor()
+            # Commit any active editor before reading data
+            self.keys_grid.commit_active_editor()
 
-        # Clear existing keys
-        self.table.keys.clear()
+            # Clear existing keys
+            self.table.keys.clear()
 
-        # Add keys from grid widget
-        for row_data in self.keys_grid.get_all_data():
-            name, key_type, columns_str, ref_table, ref_columns_str, on_delete = row_data
+            # Add keys from grid widget
+            all_data = self.keys_grid.get_all_data()
 
-            # Convert to strings first
-            name = str(name) if name else ""
-            columns_str = str(columns_str) if columns_str else ""
-            ref_table = str(ref_table) if ref_table else ""
-            ref_columns_str = str(ref_columns_str) if ref_columns_str else ""
-            on_delete = str(on_delete) if on_delete else ""
+            for idx, row_data in enumerate(all_data):
+                name, key_type, columns_str, ref_table, ref_columns_str, on_delete = row_data
 
-            # Parse columns
-            columns = [c.strip() for c in columns_str.split(",") if c.strip()] if columns_str else []
+                # Convert to strings first
+                name = str(name) if name else ""
+                columns_str = str(columns_str) if columns_str else ""
+                ref_table = str(ref_table) if ref_table else ""
+                ref_columns_str = str(ref_columns_str) if ref_columns_str else ""
+                on_delete = str(on_delete) if on_delete else ""
 
-            # Parse referenced columns
-            ref_columns = [c.strip() for c in ref_columns_str.split(",") if c.strip()] if ref_columns_str else []
+                # Parse columns
+                columns = [c.strip() for c in columns_str.split(",") if c.strip()] if columns_str else []
 
-            # Clean up empty strings - keep value if it has content after stripping
-            ref_table = ref_table.strip() if ref_table and ref_table.strip() else None
-            ref_columns = ref_columns if ref_columns else None
-            on_delete = on_delete.strip() if on_delete and on_delete.strip() else None
+                # Parse referenced columns
+                ref_columns = [c.strip() for c in ref_columns_str.split(",") if c.strip()] if ref_columns_str else []
 
-            # Only add keys with name and columns
-            if name.strip() and columns:
-                key = Key(
-                    name=name.strip(),
-                    columns=columns,
-                    key_type=key_type,
-                    referenced_table=ref_table,
-                    referenced_columns=ref_columns,
-                    on_delete=on_delete
-                )
-                self.table.add_key(key)
+                # Clean up empty strings - keep value if it has content after stripping
+                ref_table = ref_table.strip() if ref_table and ref_table.strip() else None
+                ref_columns = ref_columns if ref_columns else None
+                on_delete = on_delete.strip() if on_delete and on_delete.strip() else None
+
+                # Only add keys with name and columns
+                if name.strip() and columns:
+                    key = Key(
+                        name=name.strip(),
+                        columns=columns,
+                        key_type=key_type,
+                        referenced_table=ref_table,
+                        referenced_columns=ref_columns,
+                        on_delete=on_delete
+                    )
+                    self.table.add_key(key)
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+
 
     def _update_table_indexes(self):
         """Update table indexes from the indexes grid widget."""

@@ -73,7 +73,8 @@ class SqlGeneratorWorker(QThread):
     
     def __init__(self, project, output_dir: str, selected_objects: Dict[str, List[Any]], 
                  single_file: bool = False, single_filename: str = "database_objects.sql",
-                 template_selections: Dict[str, List[TemplateInfo]] = None):
+                 template_selections: Dict[str, List[TemplateInfo]] = None,
+                 inline_constraints: bool = False):
         super().__init__()
         self.project = project
         self.output_dir = output_dir
@@ -81,10 +82,177 @@ class SqlGeneratorWorker(QThread):
         self.single_file = single_file
         self.single_filename = single_filename or "database_objects.sql"
         self.template_selections = template_selections or {}  # object_id -> [templates]
+        self.inline_constraints = inline_constraints  # Whether to include constraints inline in CREATE TABLE
         self.total_objects = sum(len(objects) for objects in selected_objects.values())
         self.current_progress = 0
         self._setup_templates()
     
+    def _sort_tables_by_dependencies(self, tables: List[Any]) -> List[Any]:
+        """
+        Sort tables by foreign key dependencies using topological sort.
+        Parent tables (referenced by FKs) come before child tables.
+        Handles circular dependencies by breaking cycles at nullable FK columns.
+
+        Args:
+            tables: List of table objects to sort
+
+        Returns:
+            Sorted list of tables
+        """
+        from collections import defaultdict, deque
+
+        # Build table lookup (handle multiple schemas/owners)
+        table_lookup = {}
+        table_name_variations = defaultdict(list)  # Map simple name to full names
+
+        for table in tables:
+            table_full_name = f"{table.owner}.{table.name}"
+            table_lookup[table_full_name] = table
+            # Also store variations for matching
+            table_name_variations[table.name.upper()].append(table_full_name)
+            table_name_variations[table_full_name.upper()].append(table_full_name)
+
+        # Build dependency graph: table -> list of tables it depends on (parents)
+        # Also track if dependency is mandatory (non-nullable FK)
+        dependencies = defaultdict(set)
+        mandatory_dependencies = defaultdict(set)
+        all_table_names = set(table_lookup.keys())
+
+        for table in tables:
+            table_full_name = f"{table.owner}.{table.name}"
+
+            # Check all foreign keys
+            if hasattr(table, 'keys'):
+                from ..models.base import Key
+                for key in table.keys:
+                    if key.key_type == Key.FOREIGN and key.referenced_table:
+                        ref_table = key.referenced_table
+
+                        # Try to find matching table in our generation list
+                        matched_table = None
+
+                        # 1. Try exact match
+                        if ref_table in table_lookup:
+                            matched_table = ref_table
+                        # 2. Try uppercase exact match
+                        elif ref_table.upper() in [k.upper() for k in table_lookup.keys()]:
+                            matched_table = next(k for k in table_lookup.keys() if k.upper() == ref_table.upper())
+                        # 3. Try matching just the table name (any schema)
+                        else:
+                            ref_name_only = ref_table.split('.')[-1].upper()
+                            if ref_name_only in table_name_variations:
+                                possible_matches = table_name_variations[ref_name_only]
+                                if len(possible_matches) == 1:
+                                    matched_table = possible_matches[0]
+                                elif len(possible_matches) > 1:
+                                    # Multiple tables with same name in different schemas
+                                    # Prefer same schema as current table
+                                    same_schema = [m for m in possible_matches if m.startswith(f"{table.owner}.")]
+                                    if same_schema:
+                                        matched_table = same_schema[0]
+
+                        # Only add dependency if referenced table is in our generation list
+                        if matched_table and matched_table != table_full_name:
+                            dependencies[table_full_name].add(matched_table)
+
+                            # Check if this is a mandatory dependency (non-nullable FK column)
+                            is_mandatory = False
+                            if hasattr(table, 'columns'):
+                                for fk_col in key.columns:
+                                    col = next((c for c in table.columns if c.name == fk_col), None)
+                                    if col and not col.nullable:
+                                        is_mandatory = True
+                                        break
+
+                            if is_mandatory:
+                                mandatory_dependencies[table_full_name].add(matched_table)
+
+        # Detect cycles and break them at optional (nullable) foreign keys
+        def find_and_break_cycles():
+            """Find cycles and remove optional dependencies to break them."""
+            visited = set()
+            rec_stack = set()
+            path = []
+
+            def has_cycle(node):
+                visited.add(node)
+                rec_stack.add(node)
+                path.append(node)
+
+                for neighbor in dependencies.get(node, []):
+                    if neighbor not in visited:
+                        if has_cycle(neighbor):
+                            return True
+                    elif neighbor in rec_stack:
+                        # Found cycle!
+                        cycle_start = path.index(neighbor)
+                        cycle = path[cycle_start:]
+                        # Try to break cycle at optional dependency
+                        for i, cycle_node in enumerate(cycle):
+                            next_node = cycle[(i + 1) % len(cycle)]
+                            if next_node in dependencies.get(cycle_node, set()):
+                                if next_node not in mandatory_dependencies.get(cycle_node, set()):
+                                    # This is an optional dependency, break it
+                                    dependencies[cycle_node].discard(next_node)
+                                    self.log_message.emit(f"⚠️ Breaking optional FK cycle: {cycle_node} → {next_node}")
+                                    return True
+                        # If all dependencies are mandatory, break the first one
+                        if len(cycle) > 0:
+                            first = cycle[0]
+                            second = cycle[1] if len(cycle) > 1 else cycle[0]
+                            if second in dependencies.get(first, set()):
+                                dependencies[first].discard(second)
+                                self.log_message.emit(f"⚠️ Breaking mandatory FK cycle: {first} → {second}")
+                        return True
+
+                path.pop()
+                rec_stack.remove(node)
+                return False
+
+            for table_name in table_lookup.keys():
+                if table_name not in visited:
+                    if has_cycle(table_name):
+                        return True
+            return False
+
+        # Break cycles
+        max_iterations = 10
+        for _ in range(max_iterations):
+            if not find_and_break_cycles():
+                break
+
+        # Topological sort using Kahn's algorithm
+        in_degree = {name: 0 for name in table_lookup.keys()}
+
+        for table_name, deps in dependencies.items():
+            in_degree[table_name] = len(deps)
+
+        # Queue of tables with no dependencies
+        queue = deque([name for name in table_lookup.keys() if in_degree[name] == 0])
+        sorted_tables = []
+
+        while queue:
+            table_name = queue.popleft()
+            sorted_tables.append(table_lookup[table_name])
+
+            # Find tables that depend on this one
+            for other_name, deps in dependencies.items():
+                if table_name in deps:
+                    in_degree[other_name] -= 1
+                    if in_degree[other_name] == 0:
+                        queue.append(other_name)
+
+        # Check if all tables were sorted
+        if len(sorted_tables) != len(tables):
+            # Still have circular dependencies, log warning and add remaining tables
+            remaining = [table_lookup[name] for name in table_lookup.keys()
+                        if table_lookup[name] not in sorted_tables]
+            self.log_message.emit(f"⚠️ Warning: Could not fully resolve dependencies for {len(remaining)} tables")
+            sorted_tables.extend(remaining)
+
+        self.log_message.emit(f"✅ Sorted {len(sorted_tables)} tables by dependencies")
+        return sorted_tables
+
     def _setup_templates(self):
         """Setup Jinja2 template environment."""
         self.jinja_env = None
@@ -142,7 +310,10 @@ class SqlGeneratorWorker(QThread):
             sql_parts.append("-- ==========================================")
             sql_parts.append("")
             
-            for table in self.selected_objects['tables']:
+            # Sort tables by foreign key dependencies
+            sorted_tables = self._sort_tables_by_dependencies(self.selected_objects['tables'])
+
+            for table in sorted_tables:
                 sql_parts.append(self._create_table_sql(table))
                 sql_parts.append("")
                 self._update_progress()
@@ -183,9 +354,12 @@ class SqlGeneratorWorker(QThread):
     
     def _generate_separate_files(self):
         """Generate separate files for each object using selected templates."""
-        # Generate tables
+        # Generate tables - sorted by dependencies
         if 'tables' in self.selected_objects:
-            for table in self.selected_objects['tables']:
+            # Sort tables by foreign key dependencies
+            sorted_tables = self._sort_tables_by_dependencies(self.selected_objects['tables'])
+
+            for table in sorted_tables:
                 object_id = f"table_{table.owner}.{table.name}"
                 templates = self.template_selections.get(object_id, [])
 
@@ -240,7 +414,7 @@ class SqlGeneratorWorker(QThread):
         if obj_type == 'table':
             base_name = f"{obj.name.lower()}"
             obj_name = f"{obj.owner}.{obj.name}"
-            context = {'table': obj}
+            context = {'table': obj, 'inline_constraints': self.inline_constraints}
         elif obj_type == 'sequence':
             base_name = f"{obj.name.lower()}_seq"
             obj_name = f"{obj.owner}.{obj.name}"
@@ -283,7 +457,8 @@ class SqlGeneratorWorker(QThread):
 
     def _generate_table_sql(self, table):
         """Generate SQL for a table."""
-        filename = f"{table.name.lower()}.sql"
+        # Use consistent naming: table_create_table.sql (matches template-based naming)
+        filename = f"{table.name.lower()}_create_table.sql"
         filepath = os.path.join(self.output_dir, filename)
         
         try:
@@ -335,7 +510,7 @@ class SqlGeneratorWorker(QThread):
             try:
                 # Try to load default create table template
                 template = self.jinja_env.get_template('tables/create_table.sql.j2')
-                return template.render(table=table)
+                return template.render(table=table, inline_constraints=self.inline_constraints)
             except Exception as e:
                 print(f"⚠️ Error rendering table template, falling back to basic generation: {e}")
         
@@ -521,6 +696,13 @@ class GenerateDialog(QDialog):
         
         options_layout.addLayout(single_file_layout)
         
+        # Inline constraints option
+        self.inline_constraints_checkbox = QCheckBox("Include constraints inline in CREATE TABLE statement")
+        self.inline_constraints_checkbox.setToolTip("When checked, constraints will be included in the CREATE TABLE statement.\nWhen unchecked, constraints will be added as separate ALTER TABLE statements.")
+        self.inline_constraints_checkbox.setChecked(True)  # Default is inline
+
+        options_layout.addWidget(self.inline_constraints_checkbox)
+
         # Connect checkbox to enable/disable filename field
         self.single_file_checkbox.toggled.connect(self._on_single_file_toggled)
         
@@ -887,7 +1069,8 @@ class GenerateDialog(QDialog):
             self.selected_objects.copy(),
             single_file=self.single_file_checkbox.isChecked(),
             single_filename=self.single_filename_edit.text().strip(),
-            template_selections=self.template_selections.copy()
+            template_selections=self.template_selections.copy(),
+            inline_constraints=self.inline_constraints_checkbox.isChecked()
         )
         
         self.worker.progress_updated.connect(self.progress_bar.setValue)

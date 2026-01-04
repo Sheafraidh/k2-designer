@@ -6,8 +6,19 @@ object_type: table
 -- Create table {{ table.owner }}.{{ table.name }}
 CREATE TABLE {{ table.owner }}.{{ table.name }} (
 {%- for column in table.columns %}
-    {{ column.name }} {{ column.data_type }}{% if not column.nullable %} NOT NULL{% endif %}{% if column.default %} DEFAULT {{ column.default }}{% endif %}{% if not loop.last %},{% endif %}
+    {{ column.name }} {{ column.data_type }}{% if not column.nullable %} NOT NULL{% endif %}{% if column.default %} DEFAULT {{ column.default }}{% endif %}{% if not loop.last or (inline_constraints and table.keys) %},{% endif %}
 {%- endfor %}
+{%- if inline_constraints and table.keys %}
+{%- for key in table.keys %}
+{%- if key.key_type == 'PRIMARY' %}
+    CONSTRAINT {{ key.name }} PRIMARY KEY ({{ key.columns | join(', ') }}){% if not loop.last %},{% endif %}
+{%- elif key.key_type == 'UNIQUE' %}
+    CONSTRAINT {{ key.name }} UNIQUE ({{ key.columns | join(', ') }}){% if not loop.last %},{% endif %}
+{%- elif key.key_type == 'FOREIGN' %}
+    CONSTRAINT {{ key.name }} FOREIGN KEY ({{ key.columns | join(', ') }}) REFERENCES {% if '.' in key.referenced_table %}{{ key.referenced_table }}{% else %}{{ table.owner }}.{{ key.referenced_table }}{% endif %} ({{ key.referenced_columns | join(', ') }}){% if key.on_delete %} ON DELETE {{ key.on_delete }}{% endif %}{% if not loop.last %},{% endif %}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
 ){% if table.tablespace %} TABLESPACE {{ table.tablespace }}{% endif %};
 
 {%- if table.comment %}
@@ -21,13 +32,24 @@ COMMENT ON COLUMN {{ table.owner }}.{{ table.name }}.{{ column.name }} IS '{{ co
 {%- endif %}
 {%- endfor %}
 
+{%- if not inline_constraints %}
 {%- for key in table.keys %}
 
+{%- if key.key_type == 'PRIMARY' %}
 ALTER TABLE {{ table.owner }}.{{ table.name }} ADD CONSTRAINT {{ key.name }} PRIMARY KEY ({{ key.columns | join(', ') }});
+{%- elif key.key_type == 'FOREIGN' %}
+ALTER TABLE {{ table.owner }}.{{ table.name }} ADD CONSTRAINT {{ key.name }} FOREIGN KEY ({{ key.columns | join(', ') }}) REFERENCES {% if '.' in key.referenced_table %}{{ key.referenced_table }}{% else %}{{ table.owner }}.{{ key.referenced_table }}{% endif %} ({{ key.referenced_columns | join(', ') }}){% if key.on_delete %} ON DELETE {{ key.on_delete }}{% endif %};
+{%- elif key.key_type == 'UNIQUE' %}
+ALTER TABLE {{ table.owner }}.{{ table.name }} ADD CONSTRAINT {{ key.name }} UNIQUE ({{ key.columns | join(', ') }});
+{%- endif %}
 {%- endfor %}
+{%- endif %}
 
 {%- for index in table.indexes %}
 
 CREATE INDEX {{ index.name }} ON {{ table.owner }}.{{ table.name }} ({{ index.columns | join(', ') }}){% if index.tablespace %} TABLESPACE {{ index.tablespace }}{% endif %};
 {%- endfor %}
+
+
+
 

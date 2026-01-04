@@ -37,8 +37,10 @@ class NamingRulesEngine:
         """
         if templates_dir is None:
             # Default to templates directory in project root
+            # __file__ is in src/k2_designer/controllers/naming_rules_engine.py
+            # Go up 4 levels: controllers -> k2_designer -> src -> project_root
             templates_dir = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
                 'templates'
             )
 
