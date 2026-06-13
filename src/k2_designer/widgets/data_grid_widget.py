@@ -21,17 +21,17 @@ See LICENSE file for full terms.
 """
 
 from typing import List, Dict, Optional, Callable, Any
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QTableWidgetItem, QPushButton, QLabel, QLineEdit,
                              QComboBox, QHeaderView, QMessageBox,
                              QStyledItemDelegate)
-from PyQt6.QtCore import Qt, pyqtSignal
+from PySide6.QtCore import Qt, Signal
 
 
 class MultiSelectDelegate(QStyledItemDelegate):
     """Custom delegate that handles multi-row editing."""
 
-    editingStarted = pyqtSignal(int, int)  # row, column
+    editingStarted = Signal(int, int)  # row, column
 
     def setEditorData(self, editor, index):
         """Override to capture when editing starts."""
@@ -109,10 +109,10 @@ class DataGridWidget(QWidget):
         row_moved: Emitted when a row is moved
     """
 
-    data_changed = pyqtSignal()
-    row_added = pyqtSignal(int)  # row index
-    row_removed = pyqtSignal(list)  # list of removed row indices
-    row_moved = pyqtSignal(int, int)  # from_row, to_row
+    data_changed = Signal()
+    row_added = Signal(int)  # row index
+    row_removed = Signal(list)  # list of removed row indices
+    row_moved = Signal(int, int)  # from_row, to_row
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -554,7 +554,7 @@ class DataGridWidget(QWidget):
                     # Get value from widget
                     if hasattr(widget, 'checkbox'):
                         # Checkbox widget
-                        from PyQt6.QtWidgets import QCheckBox
+                        from PySide6.QtWidgets import QCheckBox
                         checkbox = widget.checkbox
                         if isinstance(checkbox, QCheckBox):
                             cell_value = "true" if checkbox.isChecked() else "false"
@@ -706,7 +706,7 @@ class DataGridWidget(QWidget):
 
     def _setup_checkbox_centered_cell(self, row: int, col: int, checked: bool):
         """Setup a centered checkbox cell (checkbox in a centered widget)."""
-        from PyQt6.QtWidgets import QCheckBox
+        from PySide6.QtWidgets import QCheckBox
 
         widget = QWidget()
         layout = QHBoxLayout(widget)
@@ -1063,7 +1063,7 @@ class DataGridWidget(QWidget):
             if widget and use_widget:
                 # Check for centered checkbox widget
                 if hasattr(widget, 'checkbox'):
-                    from PyQt6.QtWidgets import QCheckBox
+                    from PySide6.QtWidgets import QCheckBox
                     checkbox = widget.checkbox
                     if isinstance(checkbox, QCheckBox):
                         data.append(checkbox.isChecked())
@@ -1134,7 +1134,7 @@ class DataGridWidget(QWidget):
             if widget and use_widget:
                 # Check for centered checkbox widget
                 if hasattr(widget, 'checkbox'):
-                    from PyQt6.QtWidgets import QCheckBox
+                    from PySide6.QtWidgets import QCheckBox
                     checkbox = widget.checkbox
                     if isinstance(checkbox, QCheckBox):
                         checkbox.setChecked(bool(value))
