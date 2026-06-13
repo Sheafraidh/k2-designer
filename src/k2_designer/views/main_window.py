@@ -20,12 +20,12 @@ For commercial licensing, contact: sheafraidh@gmail.com
 See LICENSE file for full terms.
 """
 
-from PyQt6.QtWidgets import (QMainWindow, QMdiArea, QDockWidget, QVBoxLayout, 
+from PySide6.QtWidgets import (QMainWindow, QMdiArea, QDockWidget, QVBoxLayout, 
                              QHBoxLayout, QWidget, QMenuBar, QToolBar, QStatusBar,
                              QFileDialog, QMessageBox, QSplitter, QTabWidget, QLabel,
                              QApplication)
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QIcon, QKeySequence, QAction, QPalette, QColor
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QIcon, QKeySequence, QAction, QPalette, QColor
 
 from ..models import Project
 from ..controllers.project_manager import ProjectManager
@@ -40,7 +40,7 @@ class MainWindow(QMainWindow):
     """Main application window with tabbed diagram interface."""
     
     # Signals
-    project_changed = pyqtSignal(Project)
+    project_changed = Signal(Project)
     
     def __init__(self):
         super().__init__()
@@ -91,7 +91,7 @@ class MainWindow(QMainWindow):
         # 'normal' state doesn't need special handling
 
         # Set window icon
-        from PyQt6.QtGui import QIcon
+        from PySide6.QtGui import QIcon
         import os
         icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'resources', 'k2_icon.png')
         if os.path.exists(icon_path):
@@ -263,7 +263,7 @@ class MainWindow(QMainWindow):
         main_toolbar = self.addToolBar("Main")
         
         # Set smaller icon size for toolbar
-        from PyQt6.QtCore import QSize
+        from PySide6.QtCore import QSize
         main_toolbar.setIconSize(QSize(16, 16))  # Small icons (default is usually 24x24 or 32x32)
         
         main_toolbar.addAction(self.new_action)
