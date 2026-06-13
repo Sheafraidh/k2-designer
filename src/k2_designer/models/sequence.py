@@ -21,17 +21,18 @@ See LICENSE file for full terms.
 """
 
 
-from typing import Optional, Dict, Any
+from typing import Any
+
 from .base import DatabaseObject
 
 
 class Sequence(DatabaseObject):
     """Database sequence definition."""
-    
-    def __init__(self, name: str, owner: str, start_with: int = 1, 
-                 increment_by: int = 1, min_value: Optional[int] = None,
-                 max_value: Optional[int] = None, cache_size: int = 20,
-                 cycle: bool = False, comment: Optional[str] = None, guid: Optional[str] = None):
+
+    def __init__(self, name: str, owner: str, start_with: int = 1,
+                 increment_by: int = 1, min_value: int | None = None,
+                 max_value: int | None = None, cache_size: int = 20,
+                 cycle: bool = False, comment: str | None = None, guid: str | None = None):
         super().__init__(name, comment, guid)
         self.owner = owner
         self.start_with = start_with
@@ -40,9 +41,9 @@ class Sequence(DatabaseObject):
         self.max_value = max_value
         self.cache_size = cache_size
         self.cycle = cycle
-    
+
     @property
-    def attributes(self) -> Dict[str, Any]:
+    def attributes(self) -> dict[str, Any]:
         """Get sequence attributes as a dictionary."""
         return {
             'start_with': self.start_with,
@@ -52,7 +53,7 @@ class Sequence(DatabaseObject):
             'cache_size': self.cache_size,
             'cycle': self.cycle
         }
-    
+
     def to_dict(self) -> dict:
         return {
             'guid': self.guid,
@@ -66,7 +67,7 @@ class Sequence(DatabaseObject):
             'cycle': self.cycle,
             'comment': self.comment
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict):
         return cls(
@@ -81,10 +82,10 @@ class Sequence(DatabaseObject):
             comment=data.get('comment'),
             guid=data.get('guid')
         )
-    
+
     def __str__(self) -> str:
         return f"Sequence({self.owner}.{self.name})"
-    
+
     def __repr__(self) -> str:
         return (f"Sequence(name='{self.name}', owner='{self.owner}', "
                 f"start_with={self.start_with}, increment_by={self.increment_by})")

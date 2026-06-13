@@ -21,10 +21,9 @@ See LICENSE file for full terms.
 """
 
 
-from enum import Enum
-from typing import Optional, List
-from abc import ABC, abstractmethod
 import uuid
+from abc import ABC, abstractmethod
+from enum import Enum
 
 
 class StereotypeType(Enum):
@@ -35,9 +34,9 @@ class StereotypeType(Enum):
 
 class Stereotype:
     """Custom stereotype definition."""
-    
-    def __init__(self, name: str, stereotype_type: StereotypeType, 
-                 description: Optional[str] = None, background_color: Optional[str] = None, guid: Optional[str] = None):
+
+    def __init__(self, name: str, stereotype_type: StereotypeType,
+                 description: str | None = None, background_color: str | None = None, guid: str | None = None):
         self.name = name
         self.stereotype_type = stereotype_type
         self.description = description
@@ -50,7 +49,7 @@ class Stereotype:
             return "#4C4C4C"
         else:  # COLUMN
             return "#808080"
-    
+
     def to_dict(self) -> dict:
         return {
             'guid': self.guid,
@@ -59,7 +58,7 @@ class Stereotype:
             'description': self.description,
             'background_color': self.background_color
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict):
         return cls(
@@ -86,8 +85,8 @@ class PartitionType(Enum):
 
 class DatabaseObject(ABC):
     """Base class for all database objects."""
-    
-    def __init__(self, name: str, comment: Optional[str] = None, guid: Optional[str] = None):
+
+    def __init__(self, name: str, comment: str | None = None, guid: str | None = None):
         self.name = name
         self.comment = comment
         self.guid = guid or str(uuid.uuid4())
@@ -96,7 +95,7 @@ class DatabaseObject(ABC):
     def to_dict(self) -> dict:
         """Serialize object to dictionary."""
         pass
-    
+
     @classmethod
     @abstractmethod
     def from_dict(cls, data: dict):
@@ -106,10 +105,10 @@ class DatabaseObject(ABC):
 
 class Column:
     """Database column definition."""
-    
-    def __init__(self, name: str, data_type: str, nullable: bool = True, 
-                 comment: Optional[str] = None, default: Optional[str] = None,
-                 domain: Optional[str] = None, stereotype: Optional[str] = None, guid: Optional[str] = None):
+
+    def __init__(self, name: str, data_type: str, nullable: bool = True,
+                 comment: str | None = None, default: str | None = None,
+                 domain: str | None = None, stereotype: str | None = None, guid: str | None = None):
         self.name = name
         self.data_type = data_type
         self.nullable = nullable
@@ -130,7 +129,7 @@ class Column:
             'domain': self.domain,
             'stereotype': self.stereotype
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict):
         return cls(
@@ -147,17 +146,17 @@ class Column:
 
 class Key:
     """Database key definition."""
-    
+
     # Key types
     PRIMARY = "PRIMARY"
     FOREIGN = "FOREIGN"
     UNIQUE = "UNIQUE"
 
-    def __init__(self, name: str, columns: List[str], key_type: str = UNIQUE,
-                 referenced_table: Optional[str] = None, referenced_columns: Optional[List[str]] = None,
-                 on_delete: Optional[str] = None, on_update: Optional[str] = None,
-                 associated_index_guid: Optional[str] = None,
-                 guid: Optional[str] = None):
+    def __init__(self, name: str, columns: list[str], key_type: str = UNIQUE,
+                 referenced_table: str | None = None, referenced_columns: list[str] | None = None,
+                 on_delete: str | None = None, on_update: str | None = None,
+                 associated_index_guid: str | None = None,
+                 guid: str | None = None):
         self.name = name
         self.columns = columns
         self.key_type = key_type  # PRIMARY, FOREIGN, or UNIQUE
@@ -181,7 +180,7 @@ class Key:
             'on_update': self.on_update,
             'associated_index_guid': self.associated_index_guid
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict):
         return cls(
@@ -199,8 +198,8 @@ class Key:
 
 class Index:
     """Database index definition."""
-    
-    def __init__(self, name: str, columns: List[str], tablespace: Optional[str] = None, guid: Optional[str] = None):
+
+    def __init__(self, name: str, columns: list[str], tablespace: str | None = None, guid: str | None = None):
         self.name = name
         self.columns = columns
         self.tablespace = tablespace
@@ -213,7 +212,7 @@ class Index:
             'columns': self.columns,
             'tablespace': self.tablespace
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict):
         return cls(
@@ -226,17 +225,17 @@ class Index:
 
 class Partitioning:
     """Database partitioning definition."""
-    
-    def __init__(self, columns: List[str], partition_type: PartitionType):
+
+    def __init__(self, columns: list[str], partition_type: PartitionType):
         self.columns = columns
         self.partition_type = partition_type
-    
+
     def to_dict(self) -> dict:
         return {
             'columns': self.columns,
             'partition_type': self.partition_type.value
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict):
         return cls(

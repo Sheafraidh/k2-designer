@@ -20,18 +20,9 @@ For commercial licensing, contact: sheafraidh@gmail.com
 See LICENSE file for full terms.
 """
 
-"""
-Example demonstrating how to use DataGridWidget for different use cases.
+from PySide6.QtWidgets import QDialog, QHBoxLayout, QHeaderView, QMessageBox, QPushButton, QVBoxLayout
 
-This file shows how to:
-1. Use DataGridWidget for managing database keys
-2. Use DataGridWidget for managing indexes
-3. Customize the widget with callbacks and custom buttons
-"""
-
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
-                             QHeaderView, QMessageBox)
-from .data_grid_widget import DataGridWidget, ColumnConfig
+from .data_grid_widget import ColumnConfig, DataGridWidget
 
 
 class KeysGridExample(QDialog):
@@ -412,8 +403,9 @@ class ColumnsGridExample(QDialog):
 
 # Example usage in code:
 if __name__ == "__main__":
-    from PySide6.QtWidgets import QApplication
     import sys
+
+    from PySide6.QtWidgets import QApplication
 
     app = QApplication(sys.argv)
 

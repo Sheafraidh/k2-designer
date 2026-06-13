@@ -21,16 +21,16 @@ See LICENSE file for full terms.
 """
 
 
-from .base import DatabaseObject, Column, Key, Index, Partitioning, Stereotype, PartitionType
+from .base import Column, DatabaseObject, Index, Key, Partitioning, PartitionType, Stereotype
+from .diagram import Diagram, DiagramItem
 from .domain import Domain
 from .owner import Owner
-from .table import Table
-from .sequence import Sequence
-from .diagram import Diagram, DiagramItem
 from .project import Project
+from .sequence import Sequence
+from .table import Table
 
 __all__ = [
-    'DatabaseObject', 'Column', 'Key', 'Index', 'Partitioning', 
-    'Stereotype', 'PartitionType', 'Domain', 'Owner', 
+    'DatabaseObject', 'Column', 'Key', 'Index', 'Partitioning',
+    'Stereotype', 'PartitionType', 'Domain', 'Owner',
     'Table', 'Sequence', 'Diagram', 'DiagramItem', 'Project'
 ]

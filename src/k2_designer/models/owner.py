@@ -21,23 +21,23 @@ See LICENSE file for full terms.
 """
 
 
-from typing import Optional
+
 from .base import DatabaseObject
 
 
 class Owner(DatabaseObject):
     """Database owner/user definition."""
-    
-    def __init__(self, name: str, default_tablespace: Optional[str] = None,
-                 temp_tablespace: Optional[str] = None, 
-                 default_index_tablespace: Optional[str] = None,
-                 editionable: bool = False, comment: Optional[str] = None, guid: Optional[str] = None):
+
+    def __init__(self, name: str, default_tablespace: str | None = None,
+                 temp_tablespace: str | None = None,
+                 default_index_tablespace: str | None = None,
+                 editionable: bool = False, comment: str | None = None, guid: str | None = None):
         super().__init__(name, comment, guid)
         self.default_tablespace = default_tablespace
         self.temp_tablespace = temp_tablespace
         self.default_index_tablespace = default_index_tablespace
         self.editionable = editionable
-    
+
     def to_dict(self) -> dict:
         return {
             'guid': self.guid,
@@ -48,7 +48,7 @@ class Owner(DatabaseObject):
             'editionable': self.editionable,
             'comment': self.comment
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict):
         return cls(
@@ -60,10 +60,10 @@ class Owner(DatabaseObject):
             comment=data.get('comment'),
             guid=data.get('guid')
         )
-    
+
     def __str__(self) -> str:
         return f"Owner({self.name})"
-    
+
     def __repr__(self) -> str:
         return (f"Owner(name='{self.name}', default_tablespace='{self.default_tablespace}', "
                 f"editionable={self.editionable})")

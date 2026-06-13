@@ -21,12 +21,22 @@ See LICENSE file for full terms.
 """
 
 
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
-                             QLineEdit, QPushButton, QFileDialog, QLabel,
-                             QGroupBox, QDialogButtonBox, QComboBox)
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QPalette, QColor
 import os
+
+from PySide6.QtGui import QColor, QFont, QPalette
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+)
 
 
 class ProjectSettingsDialog(QDialog):

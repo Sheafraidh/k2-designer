@@ -21,14 +21,14 @@ See LICENSE file for full terms.
 """
 
 import os
-from typing import Optional, List
-from jinja2 import Environment, FileSystemLoader, Template
+
+from jinja2 import Environment, FileSystemLoader
 
 
 class NamingRulesEngine:
     """Engine for generating database object names based on Jinja2 templates."""
 
-    def __init__(self, templates_dir: Optional[str] = None):
+    def __init__(self, templates_dir: str | None = None):
         """
         Initialize the naming rules engine.
 
@@ -89,7 +89,6 @@ class NamingRulesEngine:
         if not table or not hasattr(table, 'keys'):
             return 0
 
-        from ..models.base import Key
         count = 0
         for key in table.keys:
             if key.key_type == key_type:
@@ -102,8 +101,8 @@ class NamingRulesEngine:
             return 0
         return len(table.indexes)
 
-    def generate_primary_key_name(self, table_name: str, columns: List[str],
-                                   table=None, owner: Optional[str] = None) -> str:
+    def generate_primary_key_name(self, table_name: str, columns: list[str],
+                                   table=None, owner: str | None = None) -> str:
         """
         Generate a primary key name.
 
@@ -139,9 +138,9 @@ class NamingRulesEngine:
             print(f"⚠ Error generating primary key name: {e}")
             return f"{table_name}_PK"
 
-    def generate_foreign_key_name(self, table_name: str, columns: List[str],
-                                   referenced_table: Optional[str] = None,
-                                   table=None, owner: Optional[str] = None) -> str:
+    def generate_foreign_key_name(self, table_name: str, columns: list[str],
+                                   referenced_table: str | None = None,
+                                   table=None, owner: str | None = None) -> str:
         """
         Generate a foreign key name.
 
@@ -183,8 +182,8 @@ class NamingRulesEngine:
             number = self._count_existing_keys(table, Key.FOREIGN) + 1
             return f"{table_name}_FK{number}"
 
-    def generate_unique_key_name(self, table_name: str, columns: List[str],
-                                  table=None, owner: Optional[str] = None) -> str:
+    def generate_unique_key_name(self, table_name: str, columns: list[str],
+                                  table=None, owner: str | None = None) -> str:
         """
         Generate a unique key name.
 
@@ -224,8 +223,8 @@ class NamingRulesEngine:
             number = self._count_existing_keys(table, Key.UNIQUE) + 1
             return f"{table_name}_UK{number}"
 
-    def generate_index_name(self, table_name: str, columns: List[str],
-                           table=None, owner: Optional[str] = None) -> str:
+    def generate_index_name(self, table_name: str, columns: list[str],
+                           table=None, owner: str | None = None) -> str:
         """
         Generate an index name.
 
