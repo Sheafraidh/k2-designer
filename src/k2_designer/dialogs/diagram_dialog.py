@@ -21,9 +21,9 @@ See LICENSE file for full terms.
 """
 
 
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
                              QLineEdit, QTextEdit, QDialogButtonBox, QLabel, QMessageBox)
-from PyQt6.QtCore import Qt
+from PySide6.QtCore import Qt
 
 from ..models import Diagram
 

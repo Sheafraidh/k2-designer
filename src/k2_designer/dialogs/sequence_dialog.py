@@ -21,10 +21,10 @@ See LICENSE file for full terms.
 """
 
 
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
                              QLineEdit, QTextEdit, QPushButton, QLabel,
                              QCheckBox, QComboBox, QSpinBox, QMessageBox)
-from PyQt6.QtCore import Qt
+from PySide6.QtCore import Qt
 
 from ..models import Sequence
 

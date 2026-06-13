@@ -20,10 +20,10 @@ For commercial licensing, contact: sheafraidh@gmail.com
 See LICENSE file for full terms.
 """
 
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
                              QLineEdit, QPushButton, QLabel, QComboBox,
                              QListWidget, QMessageBox, QGroupBox, QAbstractItemView)
-from PyQt6.QtCore import Qt
+from PySide6.QtCore import Qt
 
 from ..models.base import Key
 

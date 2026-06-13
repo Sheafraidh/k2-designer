@@ -20,9 +20,9 @@ For commercial licensing, contact: sheafraidh@gmail.com
 See LICENSE file for full terms.
 """
 
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextEdit
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QFont, QPixmap
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextEdit
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QFont, QPixmap
 import os
 
 
@@ -64,7 +64,7 @@ class AboutDialog(QDialog):
             self.move(x, y)
         else:
             # No parent, center on screen
-            from PyQt6.QtWidgets import QApplication
+            from PySide6.QtWidgets import QApplication
             screen = QApplication.primaryScreen().geometry()
             x = (screen.width() - self.width()) // 2
             y = (screen.height() - self.height()) // 2
@@ -92,7 +92,7 @@ class AboutDialog(QDialog):
             self.setWindowTitle("About K2 Designer")
 
         # Set window icon
-        from PyQt6.QtGui import QIcon
+        from PySide6.QtGui import QIcon
         icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'resources', 'k2_icon.png')
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
