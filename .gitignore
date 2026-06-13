@@ -17,3 +17,6 @@ __pycache__/
 .idea/
 *.iml
 *.iws
+
+# macOS
+.DS_Store
