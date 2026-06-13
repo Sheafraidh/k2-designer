@@ -22,6 +22,7 @@ See LICENSE file for full terms.
 
 
 import copy
+import warnings
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
@@ -183,10 +184,9 @@ class TableDialog(QDialog):
                             ref_cols_widget.setCurrentText("")
 
                 # Disconnect any existing key type change connections
-                try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
                     key_type_widget.currentIndexChanged.disconnect()
-                except RuntimeError:
-                    pass
 
                 # Connect to clear Referenced fields when changing to non-FK type
                 if isinstance(ref_table_widget, QComboBox) and isinstance(ref_cols_widget, QComboBox):
@@ -200,10 +200,9 @@ class TableDialog(QDialog):
             # Connect Referenced Table changes for FK keys
             if isinstance(ref_table_widget, QComboBox) and isinstance(ref_cols_widget, QComboBox):
                 # Disconnect any existing connections
-                try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
                     ref_table_widget.currentTextChanged.disconnect()
-                except RuntimeError:
-                    pass
 
                 # Connect signal to update Referenced Columns
                 def make_handler(ref_cols_combo):
@@ -472,10 +471,9 @@ class TableDialog(QDialog):
             domain_combo = self.columns_grid.get_cell_widget(row, col)
             if domain_combo and isinstance(domain_combo, QComboBox):
                 # Disconnect any existing connections
-                try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
                     domain_combo.currentTextChanged.disconnect()
-                except RuntimeError:
-                    pass
                 # Connect to domain change handler
                 domain_combo.currentTextChanged.connect(
                     lambda text, r=row: self._on_domain_changed(r, text)
@@ -488,10 +486,9 @@ class TableDialog(QDialog):
             stereotype_combo = self.columns_grid.get_cell_widget(row, col)
             if stereotype_combo and isinstance(stereotype_combo, QComboBox):
                 # Disconnect any existing connections
-                try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
                     stereotype_combo.currentTextChanged.disconnect()
-                except RuntimeError:
-                    pass
                 # Connect to stereotype change handler
                 stereotype_combo.currentTextChanged.connect(
                     lambda text, r=row: self._on_stereotype_changed(r, text)
