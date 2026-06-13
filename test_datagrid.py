@@ -16,10 +16,10 @@ def test_imports():
         return False
 
     try:
-        from PyQt6.QtWidgets import QHeaderView
-        print("✓ PyQt6 imported successfully")
+        from PySide6.QtWidgets import QHeaderView
+        print("✓ PySide6 imported successfully")
     except ImportError as e:
-        print(f"✗ Failed to import PyQt6: {e}")
+        print(f"✗ Failed to import PySide6: {e}")
         return False
 
     return True
@@ -30,7 +30,7 @@ def test_column_config():
     print("\nTesting ColumnConfig...")
 
     from src.k2_designer.widgets import ColumnConfig
-    from PyQt6.QtWidgets import QHeaderView
+    from PySide6.QtWidgets import QHeaderView
 
     try:
         col = ColumnConfig(
