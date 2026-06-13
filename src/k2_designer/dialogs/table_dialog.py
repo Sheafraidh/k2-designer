@@ -21,12 +21,12 @@ See LICENSE file for full terms.
 """
 
 
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
                              QLineEdit, QTextEdit, QPushButton, QLabel,
                              QCheckBox, QComboBox, QHeaderView, QMessageBox,
                              QTabWidget, QWidget, QColorDialog)
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 import copy
 
 from ..models import Table, Column
@@ -141,7 +141,7 @@ class TableDialog(QDialog):
 
     def _connect_ref_table_signals(self):
         """Connect Referenced Table combobox signals to update Referenced Columns."""
-        from PyQt6.QtWidgets import QComboBox
+        from PySide6.QtWidgets import QComboBox
         from ..models.base import Key
 
         if not hasattr(self, 'keys_grid') or not hasattr(self.keys_grid, 'table') or not self.keys_grid.table:

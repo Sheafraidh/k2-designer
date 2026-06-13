@@ -23,13 +23,13 @@ See LICENSE file for full terms.
 
 import csv
 from io import StringIO
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTextEdit,
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTextEdit,
                              QPushButton, QLabel, QComboBox, QCheckBox,
                              QGroupBox, QFormLayout, QFileDialog, QMessageBox,
                              QTableWidget, QTableWidgetItem, QHeaderView,
                              QDialogButtonBox)
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 
 
 class CSVImportDialog(QDialog):
@@ -161,7 +161,7 @@ class CSVImportDialog(QDialog):
 
     def _paste_from_clipboard(self):
         """Paste data from clipboard."""
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         clipboard = QApplication.clipboard()
         text = clipboard.text()
 

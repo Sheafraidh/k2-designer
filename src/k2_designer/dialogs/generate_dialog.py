@@ -51,13 +51,13 @@ if sys.platform == "darwin":
                 sys.stdout = old_stdout
                 sys.stderr = old_stderr
 
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, 
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, 
                              QTabWidget, QTreeWidget, QTreeWidgetItem, QCheckBox,
                              QLabel, QLineEdit, QFileDialog, QProgressBar, 
                              QTextEdit, QSplitter, QGroupBox, QMessageBox,
                              QApplication)
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QFont
+from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtGui import QFont
 
 from ..controllers.template_manager import TemplateManager, TemplateInfo
 from ..controllers.user_settings import UserSettingsManager
@@ -66,10 +66,10 @@ from ..controllers.user_settings import UserSettingsManager
 class SqlGeneratorWorker(QThread):
     """Worker thread for generating SQL files."""
     
-    progress_updated = pyqtSignal(int)
-    log_message = pyqtSignal(str)
-    finished = pyqtSignal()
-    error_occurred = pyqtSignal(str)
+    progress_updated = Signal(int)
+    log_message = Signal(str)
+    finished = Signal()
+    error_occurred = Signal(str)
     
     def __init__(self, project, output_dir: str, selected_objects: Dict[str, List[Any]], 
                  single_file: bool = False, single_filename: str = "database_objects.sql",

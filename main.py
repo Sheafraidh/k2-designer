@@ -24,15 +24,15 @@ import sys
 import os
 import warnings
 import traceback
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import Qt
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Qt
 
 from src.k2_designer.views.main_window import MainWindow
 
 # Suppress macOS NSOpenPanel warnings
 if sys.platform == "darwin":  # macOS
     os.environ["OBJC_SILENCE_GC_DEPRECATIONS"] = "YES"
-    # Filter out specific macOS PyQt6 warnings
+    # Filter out specific macOS PySide6 warnings
     warnings.filterwarnings("ignore", category=RuntimeWarning, 
                           message=".*NSOpenPanel.*overrides.*identifier.*")
 
@@ -128,7 +128,7 @@ def main():
     app.setOrganizationName("K2 Designer Team")
     
     # Set application icon
-    from PyQt6.QtGui import QIcon
+    from PySide6.QtGui import QIcon
     icon_path = os.path.join(os.path.dirname(__file__), 'src', 'k2_designer', 'resources', 'k2_icon.png')
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))

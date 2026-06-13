@@ -21,11 +21,11 @@ See LICENSE file for full terms.
 """
 
 
-from PyQt6.QtWidgets import (QTreeWidget, QTreeWidgetItem, QVBoxLayout, 
+from PySide6.QtWidgets import (QTreeWidget, QTreeWidgetItem, QVBoxLayout, 
                              QWidget, QMenu, QMessageBox, QHBoxLayout, 
                              QLineEdit, QPushButton, QLabel)
-from PyQt6.QtCore import Qt, pyqtSignal, QMimeData
-from PyQt6.QtGui import QAction, QIcon, QDrag
+from PySide6.QtCore import Qt, Signal, QMimeData
+from PySide6.QtGui import QAction, QIcon, QDrag
 
 from ..models import Project, Owner, Table, Sequence, Domain, Diagram
 
@@ -64,7 +64,7 @@ class ObjectBrowser(QWidget):
     """Tree view widget for browsing database objects."""
     
     # Signals
-    selection_changed = pyqtSignal(object)  # Emits selected object
+    selection_changed = Signal(object)  # Emits selected object
     
     def __init__(self, parent=None):
         super().__init__(parent)

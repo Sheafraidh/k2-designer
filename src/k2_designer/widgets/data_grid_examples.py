@@ -29,7 +29,7 @@ This file shows how to:
 3. Customize the widget with callbacks and custom buttons
 """
 
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                              QHeaderView, QMessageBox)
 from .data_grid_widget import DataGridWidget, ColumnConfig
 
@@ -412,7 +412,7 @@ class ColumnsGridExample(QDialog):
 
 # Example usage in code:
 if __name__ == "__main__":
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication
     import sys
 
     app = QApplication(sys.argv)

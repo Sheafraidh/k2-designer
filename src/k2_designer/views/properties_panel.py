@@ -21,12 +21,12 @@ See LICENSE file for full terms.
 """
 
 
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QFormLayout, QLabel, 
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QFormLayout, QLabel, 
                              QLineEdit, QTextEdit, QComboBox, QCheckBox,
                              QScrollArea, QGroupBox, QTableWidget, 
                              QTableWidgetItem, QHeaderView, QPushButton,
                              QHBoxLayout)
-from PyQt6.QtCore import Qt, pyqtSignal
+from PySide6.QtCore import Qt, Signal
 
 from ..models import Owner, Table, Sequence, Domain, Column, Key, Index
 from ..models.base import Stereotype, StereotypeType
@@ -36,7 +36,7 @@ class PropertiesPanel(QWidget):
     """Panel for displaying and editing properties of selected objects."""
     
     # Signals
-    object_modified = pyqtSignal(object)
+    object_modified = Signal(object)
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -251,11 +251,11 @@ class PropertiesPanel(QWidget):
             self.object_modified.emit(self.current_object)
             
             # Show success message briefly
-            from PyQt6.QtWidgets import QMessageBox
+            from PySide6.QtWidgets import QMessageBox
             QMessageBox.information(self, "Success", "Changes saved successfully!")
             
         except Exception as e:
-            from PyQt6.QtWidgets import QMessageBox
+            from PySide6.QtWidgets import QMessageBox
             QMessageBox.critical(self, "Error", f"Failed to save changes:\n{str(e)}")
     
     def _save_owner_changes(self):
@@ -288,7 +288,7 @@ class PropertiesPanel(QWidget):
         # Validate data type is not empty
         data_type = self.domain_widgets['data_type'].text().strip()
         if not data_type:
-            from PyQt6.QtWidgets import QMessageBox
+            from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Validation Error", "Data type cannot be empty.")
             return
         

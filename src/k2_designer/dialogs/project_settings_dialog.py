@@ -21,11 +21,11 @@ See LICENSE file for full terms.
 """
 
 
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
                              QLineEdit, QPushButton, QFileDialog, QLabel,
                              QGroupBox, QDialogButtonBox, QComboBox)
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QPalette, QColor
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont, QPalette, QColor
 import os
 
 
@@ -202,7 +202,7 @@ class ProjectSettingsDialog(QDialog):
 
     def _apply_theme(self, theme):
         """Apply the selected theme to the application."""
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
 
         app = QApplication.instance()
         if not app:

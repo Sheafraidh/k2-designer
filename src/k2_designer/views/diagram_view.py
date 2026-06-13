@@ -21,12 +21,12 @@ See LICENSE file for full terms.
 """
 
 
-from PyQt6.QtWidgets import (QGraphicsView, QGraphicsScene, QGraphicsItem,
+from PySide6.QtWidgets import (QGraphicsView, QGraphicsScene, QGraphicsItem,
                              QGraphicsRectItem, QGraphicsTextItem, QGraphicsLineItem,
                              QGraphicsPolygonItem, QMenu, QWidget, QVBoxLayout, 
                              QHBoxLayout, QPushButton, QApplication)
-from PyQt6.QtCore import Qt, QRectF, QPointF, QSize, pyqtSignal
-from PyQt6.QtGui import (QPen, QBrush, QColor, QFont, QPainter, QTransform, 
+from PySide6.QtCore import Qt, QRectF, QPointF, QSize, Signal
+from PySide6.QtGui import (QPen, QBrush, QColor, QFont, QPainter, QTransform, 
                          QPalette, QPolygonF)
 import math
 
@@ -418,7 +418,7 @@ class TableGraphicsItem(QGraphicsRectItem):
         if not scene:
             return
         
-        from PyQt6.QtWidgets import QMessageBox
+        from PySide6.QtWidgets import QMessageBox
         
         # Confirm deletion
         count = len(table_items)
@@ -664,8 +664,8 @@ class DiagramScene(QGraphicsScene):
     """Custom graphics scene for ER diagrams."""
     
     # Signals
-    table_selected = pyqtSignal(object)  # Can emit Table or None (legacy, single selection)
-    tables_selected = pyqtSignal(list)    # New signal for multiple table selections
+    table_selected = Signal(object)  # Can emit Table or None (legacy, single selection)
+    tables_selected = Signal(list)    # New signal for multiple table selections
     
     def __init__(self, project: Project, diagram: Diagram = None, parent=None):
         super().__init__(parent)
@@ -817,7 +817,7 @@ class DiagramScene(QGraphicsScene):
                 # Find the sequence in the project
                 for sequence in self.project.sequences:
                     if f"{sequence.owner}.{sequence.name}" == item.object_name:
-                        from PyQt6.QtWidgets import QGraphicsTextItem
+                        from PySide6.QtWidgets import QGraphicsTextItem
                         sequence_item = QGraphicsTextItem(f"SEQ: {item.object_name}")
                         sequence_item.setPos(item.x, item.y)
                         sequence_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable)
@@ -892,7 +892,7 @@ class DiagramScene(QGraphicsScene):
             return
         
         # Create a simple text item for the sequence
-        from PyQt6.QtWidgets import QGraphicsTextItem
+        from PySide6.QtWidgets import QGraphicsTextItem
         sequence_item = QGraphicsTextItem(f"SEQ: {sequence_name}")
         sequence_item.setPos(position)
         sequence_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable)
@@ -1234,7 +1234,7 @@ class DiagramScene(QGraphicsScene):
     
     def keyPressEvent(self, event):
         """Handle key press events for selection operations."""
-        from PyQt6.QtCore import Qt
+        from PySide6.QtCore import Qt
         
         if event.key() == Qt.Key.Key_A and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             # Ctrl+A: Select all table items
@@ -1267,7 +1267,7 @@ class DiagramGraphicsView(QGraphicsView):
     """Custom graphics view that supports drag and drop from object browser."""
     
     # Signals
-    table_dropped = pyqtSignal(object, QPointF)  # table, position
+    table_dropped = Signal(object, QPointF)  # table, position
     
     def __init__(self, scene, parent=None):
         super().__init__(scene, parent)
@@ -1332,7 +1332,7 @@ class DiagramGraphicsView(QGraphicsView):
         Start panning on right-button press over empty space BEFORE calling the base
         implementation so panning is not blocked by the scene/view accepting the event.
         """
-        from PyQt6.QtCore import Qt
+        from PySide6.QtCore import Qt
         
         # Handle right-button panning first
         if event.button() == Qt.MouseButton.RightButton:
@@ -1381,7 +1381,7 @@ class DiagramGraphicsView(QGraphicsView):
 
     def mouseReleaseEvent(self, event):
         """Handle mouse release events for canvas panning."""
-        from PyQt6.QtCore import Qt
+        from PySide6.QtCore import Qt
         
         if event.button() == Qt.MouseButton.RightButton and self._is_panning:
             # End panning
@@ -1395,7 +1395,7 @@ class DiagramGraphicsView(QGraphicsView):
     
     def wheelEvent(self, event):
         """Handle mouse wheel events for zooming with Alt modifier."""
-        from PyQt6.QtCore import Qt
+        from PySide6.QtCore import Qt
         
         # Check if Alt/Option key is pressed
         if event.modifiers() & Qt.KeyboardModifier.AltModifier:
@@ -1436,8 +1436,8 @@ class DiagramView(QWidget):
     """Main diagram view widget."""
     
     # Signals
-    selection_changed = pyqtSignal(object)       # Single object or None (legacy)
-    multiple_selection_changed = pyqtSignal(list)  # List of selected objects
+    selection_changed = Signal(object)       # Single object or None (legacy)
+    multiple_selection_changed = Signal(list)  # List of selected objects
     
     def __init__(self, project: Project, diagram: Diagram = None, parent=None):
         super().__init__(parent)
@@ -1607,7 +1607,7 @@ class DiagramView(QWidget):
         # Restore scroll position (need to do this after the scene is fully loaded)
         # Use QTimer to ensure the scene is rendered before setting scroll position
         # Increase delay to 100ms to ensure scene has fully calculated its bounds
-        from PyQt6.QtCore import QTimer
+        from PySide6.QtCore import QTimer
         QTimer.singleShot(100, self._apply_scroll_position)
 
     def _apply_scroll_position(self):
