@@ -132,12 +132,6 @@ def main():
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
 
-    # Enable high DPI scaling
-    if hasattr(Qt, 'AA_EnableHighDpiScaling'):
-        app.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
-    if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
-        app.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
-
     # Create the main window (but don't initialize content yet)
     main_window = MainWindow()
 
