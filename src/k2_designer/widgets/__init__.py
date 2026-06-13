@@ -20,7 +20,7 @@ For commercial licensing, contact: sheafraidh@gmail.com
 See LICENSE file for full terms.
 """
 
-from .data_grid_widget import DataGridWidget, ColumnConfig
+from .data_grid_widget import ColumnConfig, DataGridWidget
 
 __all__ = ['DataGridWidget', 'ColumnConfig']
 

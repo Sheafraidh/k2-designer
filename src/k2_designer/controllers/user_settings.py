@@ -22,9 +22,7 @@ See LICENSE file for full terms.
 
 
 import json
-import os
 from pathlib import Path
-from typing import Optional
 
 
 class UserSettingsManager:
@@ -63,7 +61,7 @@ class UserSettingsManager:
         """Load settings from file."""
         if self.settings_file.exists():
             try:
-                with open(self.settings_file, 'r', encoding='utf-8') as f:
+                with open(self.settings_file, encoding='utf-8') as f:
                     self._settings = json.load(f)
                 print(f"✓ User settings loaded from: {self.settings_file}")
             except Exception as e:

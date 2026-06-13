@@ -21,16 +21,16 @@ See LICENSE file for full terms.
 """
 
 
-from .domain_dialog import DomainDialog
-from .owner_dialog import OwnerDialog
-from .table_dialog import TableDialog
-from .sequence_dialog import SequenceDialog
-from .diagram_dialog import DiagramDialog
-from .new_project_dialog import NewProjectDialog
-from .generate_dialog import GenerateDialog
-from .project_settings_dialog import ProjectSettingsDialog
 from .about_dialog import AboutDialog, SplashScreen
+from .diagram_dialog import DiagramDialog
+from .domain_dialog import DomainDialog
+from .generate_dialog import GenerateDialog
 from .key_dialog import KeyDialog
+from .new_project_dialog import NewProjectDialog
+from .owner_dialog import OwnerDialog
+from .project_settings_dialog import ProjectSettingsDialog
+from .sequence_dialog import SequenceDialog
+from .table_dialog import TableDialog
 
 __all__ = ['DomainDialog', 'OwnerDialog', 'TableDialog', 'SequenceDialog',
            'DiagramDialog', 'NewProjectDialog', 'GenerateDialog', 'ProjectSettingsDialog',

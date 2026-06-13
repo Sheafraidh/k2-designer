@@ -21,8 +21,8 @@ See LICENSE file for full terms.
 """
 
 
-from ..models import Project, Domain, Owner, Table, Diagram
-from ..models.base import Column, Key, Index
+from ..models import Diagram, Domain, Owner, Project, Table
+from ..models.base import Column, Index, Key
 
 
 class TestDataGenerator:

@@ -20,10 +20,11 @@ For commercial licensing, contact: sheafraidh@gmail.com
 See LICENSE file for full terms.
 """
 
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextEdit
+import os
+
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QPixmap
-import os
+from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QTextEdit, QVBoxLayout
 
 
 class AboutDialog(QDialog):
@@ -169,8 +170,8 @@ class AboutDialog(QDialog):
         info_text.setHtml("""
         <p style="text-align: center;"><b>Copyright © 2025 Karel Švejnoha</b><br>
         All rights reserved.</p>
-        
-        <p style="text-align: center;">A powerful visual database design tool for creating ER diagrams 
+
+        <p style="text-align: center;">A powerful visual database design tool for creating ER diagrams
         and managing database schemas.</p>
         """)
         text_layout.addWidget(info_text)
@@ -190,18 +191,18 @@ class AboutDialog(QDialog):
         self.license_text.setVisible(False)
         self.license_text.setHtml("""
         <h3>Dual License</h3>
-        
+
         <p>This software is Copyright © 2025 Karel Švejnoha. All rights reserved.</p>
-        
+
         <p>This project is available under a dual-license model:</p>
-        
+
         <h4>1. Open Source License: GNU Affero General Public License v3.0 (AGPL-3.0)</h4>
-        
-        <p>You are free to use, study, modify, and distribute this software under the 
-        terms of the AGPL-3.0. Any derivative work or software incorporating this 
-        project must also be released under the AGPL-3.0 license and its complete 
+
+        <p>You are free to use, study, modify, and distribute this software under the
+        terms of the AGPL-3.0. Any derivative work or software incorporating this
+        project must also be released under the AGPL-3.0 license and its complete
         source code must be made publicly available.</p>
-        
+
         <p><b>You MAY:</b></p>
         <ul>
             <li>Use this software for personal use, education, and research</li>
@@ -209,7 +210,7 @@ class AboutDialog(QDialog):
             <li>Modify and study the source code</li>
             <li>Distribute modifications under AGPL-3.0</li>
         </ul>
-        
+
         <p><b>You MAY NOT (without a commercial license):</b></p>
         <ul>
             <li>Sell, sublicense, or redistribute as a proprietary product</li>
@@ -217,13 +218,13 @@ class AboutDialog(QDialog):
             <li>Offer as a SaaS service</li>
             <li>Include in proprietary systems without releasing source code</li>
         </ul>
-        
+
         <p>Full AGPL-3.0 text: <a href="https://www.gnu.org/licenses/agpl-3.0.en.html">
         https://www.gnu.org/licenses/agpl-3.0.en.html</a></p>
-        
+
         <h4>2. Commercial License</h4>
-        
-        <p>A separate closed-source commercial license is available for companies or 
+
+        <p>A separate closed-source commercial license is available for companies or
         individuals who wish to use this software:</p>
         <ul>
             <li>Without releasing derivative source code</li>
@@ -231,14 +232,14 @@ class AboutDialog(QDialog):
             <li>For resale, SaaS hosting, or redistribution</li>
             <li>With additional support or custom terms</li>
         </ul>
-        
+
         <p><b>To obtain a commercial license, please contact:</b><br>
         Email: <a href="mailto:sheafraidh@gmail.com">sheafraidh@gmail.com</a></p>
-        
-        <p><i>Unless expressly stated otherwise in writing, no other rights are granted. 
-        If you obtained this software under the AGPL-3.0 license, you must comply 
+
+        <p><i>Unless expressly stated otherwise in writing, no other rights are granted.
+        If you obtained this software under the AGPL-3.0 license, you must comply
         with all of its terms.</i></p>
-        
+
         <p><b>This project remains the intellectual property of the original author.</b></p>
         """)
 

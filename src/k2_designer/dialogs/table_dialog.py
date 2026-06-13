@@ -21,26 +21,39 @@ See LICENSE file for full terms.
 """
 
 
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
-                             QLineEdit, QTextEdit, QPushButton, QLabel,
-                             QCheckBox, QComboBox, QHeaderView, QMessageBox,
-                             QTabWidget, QWidget, QColorDialog)
+import copy
+import warnings
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-import copy
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QColorDialog,
+    QComboBox,
+    QDialog,
+    QFormLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTabWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
-from ..models import Table, Column
-from ..models.base import Stereotype, StereotypeType
 from ..controllers.naming_rules_engine import NamingRulesEngine
-from ..widgets import DataGridWidget, ColumnConfig
-
-
+from ..models import Column, Table
+from ..models.base import StereotypeType
+from ..widgets import ColumnConfig, DataGridWidget
 
 
 class TableDialog(QDialog):
     """Dialog for creating and editing table objects."""
-    
-    def __init__(self, table: Table = None, owners: list = None, selected_owner: str = None, 
+
+    def __init__(self, table: Table = None, owners: list = None, selected_owner: str = None,
                  project=None, parent=None):
         super().__init__(parent)
         self.table = table
@@ -48,7 +61,7 @@ class TableDialog(QDialog):
         self.selected_owner = selected_owner
         self.project = project
         self.is_edit_mode = table is not None
-        
+
         # Initialize naming rules engine
         self.naming_engine = NamingRulesEngine()
 
@@ -60,7 +73,7 @@ class TableDialog(QDialog):
         self._setup_ui()
         self._load_data()
         self._connect_signals()
-    
+
     def _get_available_tables(self):
         """Get list of available tables from the project."""
         tables = []
@@ -142,6 +155,7 @@ class TableDialog(QDialog):
     def _connect_ref_table_signals(self):
         """Connect Referenced Table combobox signals to update Referenced Columns."""
         from PySide6.QtWidgets import QComboBox
+
         from ..models.base import Key
 
         if not hasattr(self, 'keys_grid') or not hasattr(self.keys_grid, 'table') or not self.keys_grid.table:
@@ -170,10 +184,9 @@ class TableDialog(QDialog):
                             ref_cols_widget.setCurrentText("")
 
                 # Disconnect any existing key type change connections
-                try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
                     key_type_widget.currentIndexChanged.disconnect()
-                except:
-                    pass
 
                 # Connect to clear Referenced fields when changing to non-FK type
                 if isinstance(ref_table_widget, QComboBox) and isinstance(ref_cols_widget, QComboBox):
@@ -187,17 +200,15 @@ class TableDialog(QDialog):
             # Connect Referenced Table changes for FK keys
             if isinstance(ref_table_widget, QComboBox) and isinstance(ref_cols_widget, QComboBox):
                 # Disconnect any existing connections
-                try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
                     ref_table_widget.currentTextChanged.disconnect()
-                except:
-                    pass
 
                 # Connect signal to update Referenced Columns
                 def make_handler(ref_cols_combo):
                     def handler(text):
                         if text:
                             ref_columns = self._get_columns_for_table(text)
-                            current_value = ref_cols_combo.currentText()
                             ref_cols_combo.clear()
                             ref_cols_combo.addItems(ref_columns)
                             # Clear the selection since we're changing tables
@@ -219,20 +230,20 @@ class TableDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)  # Reduced margins around dialog
         layout.setSpacing(5)  # Reduced spacing between elements
-        
+
         # Tab widget
         self.tab_widget = QTabWidget()
-        
+
         # Basic properties tab
         basic_tab = QWidget()
         self._setup_basic_tab(basic_tab)
         self.tab_widget.addTab(basic_tab, "Basic Properties")
-        
+
         # Columns tab
         columns_tab = QWidget()
         self._setup_columns_tab(columns_tab)
         self.tab_widget.addTab(columns_tab, "Columns")
-        
+
         # Keys tab
         keys_tab = QWidget()
         self._setup_keys_tab(keys_tab)
@@ -250,51 +261,51 @@ class TableDialog(QDialog):
         self.tab_widget.currentChanged.connect(self._on_tab_changed)
 
         layout.addWidget(self.tab_widget)
-        
+
         # Move tips to the bottom
         self.tips_label = QLabel("Tips: • Multi-select: Ctrl+click to toggle, Shift+click for range • Navigation: Enter moves to next row, Tab moves to next column • Filtering: Use filter controls above to find specific columns")
         self.tips_label.setStyleSheet("color: #666; font-style: italic; font-size: 11px;")
         self.tips_label.setWordWrap(True)
         layout.addWidget(self.tips_label)
-        
+
         # Button layout
         button_layout = QHBoxLayout()
         button_layout.setContentsMargins(0, 5, 0, 0)  # Small margin only on top
         button_layout.addStretch()
-        
+
         self.ok_button = QPushButton("OK")
         self.cancel_button = QPushButton("Cancel")
-        
+
         button_layout.addWidget(self.ok_button)
         button_layout.addWidget(self.cancel_button)
-        
+
         layout.addLayout(button_layout)
-    
+
     def _setup_basic_tab(self, tab_widget):
         """Setup the basic properties tab."""
         layout = QVBoxLayout(tab_widget)
         layout.setContentsMargins(5, 5, 5, 5)  # Reduced margins within tab
         layout.setSpacing(5)  # Reduced spacing between elements
-        
+
         form_layout = QFormLayout()
         form_layout.setVerticalSpacing(8)  # Reduced vertical spacing between form rows
-        
+
         self.name_edit = QLineEdit()
         self.name_edit.setMaxLength(50)
         form_layout.addRow("Name *:", self.name_edit)
-        
+
         self.owner_combo = QComboBox()
         self.owner_combo.addItems([owner.name for owner in self.owners])
         form_layout.addRow("Owner *:", self.owner_combo)
-        
+
         self.tablespace_edit = QLineEdit()
         self.tablespace_edit.setMaxLength(100)
         form_layout.addRow("Tablespace:", self.tablespace_edit)
-        
+
         self.stereotype_combo = QComboBox()
         self._populate_stereotypes()
         form_layout.addRow("Stereotype:", self.stereotype_combo)
-        
+
         # Color picker setup
         color_layout = QHBoxLayout()
         self.color_button = QPushButton("Choose Color")
@@ -306,31 +317,31 @@ class TableDialog(QDialog):
         color_layout.addWidget(self.color_button)
         color_layout.addWidget(self.color_preview)
         color_layout.addStretch()
-        
+
         # Store current color value
         self.current_color = "#4C4C4C"
         self._color_manually_set = False
-        
+
         color_widget = QWidget()
         color_widget.setLayout(color_layout)
         form_layout.addRow("Color:", color_widget)
-        
+
         self.editionable_check = QCheckBox()
         form_layout.addRow("Editionable:", self.editionable_check)
-        
+
         self.comment_edit = QTextEdit()
         self.comment_edit.setMaximumHeight(60)  # Reduced height for more compact design
         form_layout.addRow("Comment:", self.comment_edit)
-        
+
         layout.addLayout(form_layout)
-        
+
         # Required fields note
         note_label = QLabel("* Required fields")
         note_label.setStyleSheet("color: gray; font-style: italic;")
         layout.addWidget(note_label)
-        
+
         layout.addStretch()
-    
+
     def _setup_columns_tab(self, tab_widget):
         """Setup the columns tab using DataGridWidget."""
         layout = QVBoxLayout(tab_widget)
@@ -460,10 +471,9 @@ class TableDialog(QDialog):
             domain_combo = self.columns_grid.get_cell_widget(row, col)
             if domain_combo and isinstance(domain_combo, QComboBox):
                 # Disconnect any existing connections
-                try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
                     domain_combo.currentTextChanged.disconnect()
-                except:
-                    pass
                 # Connect to domain change handler
                 domain_combo.currentTextChanged.connect(
                     lambda text, r=row: self._on_domain_changed(r, text)
@@ -476,10 +486,9 @@ class TableDialog(QDialog):
             stereotype_combo = self.columns_grid.get_cell_widget(row, col)
             if stereotype_combo and isinstance(stereotype_combo, QComboBox):
                 # Disconnect any existing connections
-                try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
                     stereotype_combo.currentTextChanged.disconnect()
-                except:
-                    pass
                 # Connect to stereotype change handler
                 stereotype_combo.currentTextChanged.connect(
                     lambda text, r=row: self._on_stereotype_changed(r, text)
@@ -497,8 +506,8 @@ class TableDialog(QDialog):
         layout.setSpacing(5)
 
         # Create DataGridWidget for keys
-        from ..widgets import DataGridWidget, ColumnConfig
         from ..models.base import Key
+        from ..widgets import ColumnConfig, DataGridWidget
 
         self.keys_grid = DataGridWidget()
 
@@ -620,7 +629,7 @@ class TableDialog(QDialog):
         layout.setSpacing(5)
 
         # Create DataGridWidget for indexes
-        from ..widgets import DataGridWidget, ColumnConfig
+        from ..widgets import ColumnConfig, DataGridWidget
 
         self.indexes_grid = DataGridWidget()
 
@@ -695,13 +704,13 @@ class TableDialog(QDialog):
         """Populate stereotype combo with project stereotypes."""
         self.stereotype_combo.clear()
         self.stereotype_combo.addItem("")  # Empty option
-        
+
         if self.project and hasattr(self.project, 'stereotypes'):
-            table_stereotypes = [s for s in self.project.stereotypes 
+            table_stereotypes = [s for s in self.project.stereotypes
                                if s.stereotype_type == StereotypeType.TABLE]
             for stereotype in table_stereotypes:
                 self.stereotype_combo.addItem(stereotype.name)
-    
+
     def _load_data(self):
         """Load data if in edit mode."""
         # Configure columns grid first (needs project data for domains/stereotypes)
@@ -709,22 +718,22 @@ class TableDialog(QDialog):
 
         if self.is_edit_mode and self.table:
             self.name_edit.setText(self.table.name)
-            
+
             # Set owner
             owner_index = self.owner_combo.findText(self.table.owner)
             if owner_index >= 0:
                 self.owner_combo.setCurrentIndex(owner_index)
-            
+
             self.tablespace_edit.setText(self.table.tablespace or "")
             self.stereotype_combo.setCurrentText(self.table.stereotype or "")
             self._set_color(self.table.color or "#FFFFFF")
             self._color_manually_set = bool(self.table.color)  # Mark as manually set if table has a specific color
             self.editionable_check.setChecked(self.table.editionable)
             self.comment_edit.setPlainText(self.table.comment or "")
-            
+
             # Load columns
             self._load_columns()
-            
+
             # Load keys
             self._load_keys()
 
@@ -742,7 +751,7 @@ class TableDialog(QDialog):
         """Load columns into the grid."""
         if not self.table:
             return
-        
+
         self.columns_grid.clear_data()
 
         for column in self.table.columns:
@@ -886,7 +895,7 @@ class TableDialog(QDialog):
             # Make data type editable
             self._update_data_type_editability(row, "")
             return
-        
+
         # Find the domain and set its data type
         if self.project and hasattr(self.project, 'domains'):
             domain = next((d for d in self.project.domains if d.name == domain_name), None)
@@ -912,13 +921,13 @@ class TableDialog(QDialog):
                 data_type_item.setFlags(data_type_item.flags() | Qt.ItemFlag.ItemIsEditable)
                 # Reset to default text color (matches other columns automatically)
                 data_type_item.setData(Qt.ItemDataRole.ForegroundRole, None)
-    
+
     def _on_stereotype_changed(self, row, stereotype_name):
         """Handle stereotype selection change for a single row."""
         # Stereotype doesn't affect other columns, just store the selection
         # The value will be read when saving the table
         pass
-    
+
     def _setup_key_cell(self, row: int, col: int, value):
         """Custom cell setup for keys grid to auto-generate names."""
         # Column 0 is Name - auto-generate if empty
@@ -1100,7 +1109,7 @@ class TableDialog(QDialog):
         """Connect signals."""
         self.ok_button.clicked.connect(self._on_ok)
         self.cancel_button.clicked.connect(self.reject)
-        
+
         self.color_button.clicked.connect(self._choose_color)
         self.stereotype_combo.currentTextChanged.connect(self._on_table_stereotype_changed)
 
@@ -1159,22 +1168,22 @@ class TableDialog(QDialog):
                     f"Successfully imported {len(columns)} columns."
                 )
 
-    
+
     def _choose_color(self):
         """Open color picker dialog."""
         current_color = QColor(self.current_color)
         color = QColorDialog.getColor(current_color, self, "Choose Table Color")
-        
+
         if color.isValid():
             self._set_color(color.name())
             self._color_manually_set = True
-    
+
     def _set_color(self, color_hex: str):
         """Set the current color and update the preview."""
         self.current_color = color_hex
         self.color_preview.setStyleSheet(f"border: 1px solid black; background-color: {color_hex};")
         self.color_preview.setToolTip(f"Current color: {color_hex}")
-    
+
     def _on_table_stereotype_changed(self, text=None):
         """Handle table stereotype change to update default color."""
         # Auto-update color based on stereotype if color hasn't been manually set
@@ -1189,7 +1198,7 @@ class TableDialog(QDialog):
                     if s.name == stereotype_name and s.stereotype_type == StereotypeType.TABLE:
                         stereotype = s
                         break
-                
+
                 if stereotype:
                     self._set_color(stereotype.background_color)
                 else:
@@ -1198,7 +1207,7 @@ class TableDialog(QDialog):
             else:
                 # Default color for empty stereotype
                 self._set_color("#464646")
-    
+
     def _on_tab_changed(self, index):
         """Handle tab change event to sync between Keys and Indexes tabs."""
         # Check if we're switching to the Keys tab (index 2: Basic=0, Columns=1, Keys=2, Indexes=3)
@@ -1225,7 +1234,7 @@ class TableDialog(QDialog):
             return
 
         try:
-            from ..models.base import Key, Index
+            from ..models.base import Index
 
             # Read directly from table.keys, not from the grid
             # This ensures we get the latest state after _sync_keys_from_indexes() runs
@@ -1319,7 +1328,7 @@ class TableDialog(QDialog):
         """Handle OK button click."""
         if not self._validate_form():
             return
-        
+
         name = self.name_edit.text().strip()
         owner = self.owner_combo.currentText()
         tablespace = self.tablespace_edit.text().strip() or None
@@ -1327,7 +1336,7 @@ class TableDialog(QDialog):
         color = self.current_color if self.current_color != "#FFFFFF" else None
         editionable = self.editionable_check.isChecked()
         comment = self.comment_edit.toPlainText().strip() or None
-        
+
         if self.is_edit_mode:
             # Update existing table
             self.table.name = name  # Allow name changes
@@ -1337,7 +1346,7 @@ class TableDialog(QDialog):
             self.table.color = color
             self.table.editionable = editionable
             self.table.comment = comment
-            
+
             # Update columns
             self._update_table_columns()
 
@@ -1357,7 +1366,7 @@ class TableDialog(QDialog):
                 editionable=editionable,
                 comment=comment
             )
-            
+
             # Add columns
             self._update_table_columns()
 
@@ -1372,7 +1381,7 @@ class TableDialog(QDialog):
 
 
         self.accept()
-    
+
     def reject(self):
         """Handle Cancel button click - restore original table state."""
         if self.is_edit_mode:
@@ -1386,13 +1395,13 @@ class TableDialog(QDialog):
         """Update table columns from the grid widget."""
         if not self.table:
             return
-        
+
         # Commit any active editor before reading data
         self.columns_grid.commit_active_editor()
 
         # Clear existing columns
         self.table.columns.clear()
-        
+
         # Add columns from grid widget
         for row_data in self.columns_grid.get_all_data():
             name, data_type, nullable, default, comment, domain, stereotype = row_data
@@ -1422,7 +1431,7 @@ class TableDialog(QDialog):
     def _update_table_keys(self):
         """Update table keys from the keys grid widget."""
         try:
-            from ..models.base import Key, Index
+            from ..models.base import Index, Key
 
             if not self.table:
                 return
@@ -1525,7 +1534,7 @@ class TableDialog(QDialog):
 
                     self.table.add_key(key)
 
-        except Exception as e:
+        except Exception:
             import traceback
             traceback.print_exc()
 
@@ -1642,43 +1651,43 @@ class TableDialog(QDialog):
         """Validate the form data."""
         name = self.name_edit.text().strip()
         owner = self.owner_combo.currentText()
-        
+
         if not name:
             QMessageBox.warning(self, "Validation Error", "Table name is required.")
             self.name_edit.setFocus()
             return False
-        
+
         if not owner:
             QMessageBox.warning(self, "Validation Error", "Owner is required.")
             self.owner_combo.setFocus()
             return False
-        
+
         # Validate columns
         for row in range(self.columns_table.rowCount()):
             name_item = self.columns_table.item(row, 0)
             data_type_item = self.columns_table.item(row, 1)
-            
+
             if name_item and name_item.text().strip():
                 if not data_type_item or not data_type_item.text().strip():
                     QMessageBox.warning(
-                        self, "Validation Error", 
+                        self, "Validation Error",
                         f"Data type is required for column '{name_item.text().strip()}'."
                     )
                     return False
-        
+
         return True
-    
+
     def update_table(self):
         """Update the table object and notify parent of changes."""
         # Find the main window to emit object modification signal
         main_window = self.parent()
         while main_window and main_window.__class__.__name__ != 'MainWindow':
             main_window = main_window.parent()
-        
+
         if main_window and hasattr(main_window, '_on_object_modified'):
             # Notify main window that the table was modified
             main_window._on_object_modified(self.table)
-    
+
     def get_table(self) -> Table:
         """Get the table object."""
         return self.table

@@ -22,7 +22,6 @@ See LICENSE file for full terms.
 
 import json
 import os
-from typing import Optional
 
 from ..models import Project
 
@@ -31,30 +30,30 @@ class ProjectManager:
     """Manages project file operations and JSON storage."""
 
     def __init__(self):
-        self.current_project: Optional[Project] = None
-        self.file_path: Optional[str] = None
-    
+        self.current_project: Project | None = None
+        self.file_path: str | None = None
+
     def new_project(self, name: str = "Untitled Project", description: str = None) -> Project:
         """Create a new project."""
         self.current_project = Project(name, description)
         self.file_path = None
         return self.current_project
-    
+
     def save_project(self, file_path: str = None) -> bool:
         """Save the current project to JSON format."""
         if not self.current_project:
             return False
-        
+
         if file_path:
             self.file_path = file_path
         elif not self.file_path:
             return False
-        
+
         try:
             # Ensure .k2p extension
             if not self.file_path.endswith('.k2p'):
                 self.file_path += '.k2p'
-            
+
             # Convert project to dictionary
             project_data = self._project_to_dict(self.current_project)
 
@@ -72,7 +71,7 @@ class ProjectManager:
             traceback.print_exc()
             return False
 
-    def load_project(self, file_path: str) -> Optional[Project]:
+    def load_project(self, file_path: str) -> Project | None:
         """Load a project from JSON format."""
         if not os.path.exists(file_path):
             print(f"❌ File not found: {file_path}")
@@ -80,7 +79,7 @@ class ProjectManager:
 
         try:
             # Read JSON file
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 project_data = json.load(f)
 
             # Convert dictionary to project
@@ -135,9 +134,6 @@ class ProjectManager:
                             # Fallback: use same column name if referenced_columns not specified
                             target_column = source_column
 
-                        # Build the index key: "owner.table.column"
-                        index_key = f"{table_full_name}.{source_column}"
-
                         # Add to foreign_keys index
                         project.add_foreign_key(
                             table_full_name,
@@ -146,10 +142,9 @@ class ProjectManager:
                             target_column
                         )
 
-    def _dict_to_project(self, data: dict) -> Optional[Project]:
+    def _dict_to_project(self, data: dict) -> Project | None:
         """Convert a dictionary to a Project object."""
-        from ..models import (Domain, Owner, Table, Column, Key, Index,
-                             Partitioning, PartitionType, Sequence, Diagram)
+        from ..models import Column, Diagram, Domain, Index, Key, Owner, Partitioning, PartitionType, Sequence, Table
         from ..models.base import Stereotype, StereotypeType
 
         try:

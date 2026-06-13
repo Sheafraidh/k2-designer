@@ -20,12 +20,24 @@ For commercial licensing, contact: sheafraidh@gmail.com
 See LICENSE file for full terms.
 """
 
-from typing import List, Dict, Optional, Callable, Any
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
-                             QTableWidgetItem, QPushButton, QLabel, QLineEdit,
-                             QComboBox, QHeaderView, QMessageBox,
-                             QStyledItemDelegate)
+from collections.abc import Callable
+from typing import Any
+
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QStyledItemDelegate,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class MultiSelectDelegate(QStyledItemDelegate):
@@ -66,9 +78,9 @@ class ColumnConfig:
     def __init__(self, name: str, width: int = 100,
                  resize_mode: QHeaderView.ResizeMode = QHeaderView.ResizeMode.Interactive,
                  editor_type: str = "text",
-                 editor_options: Optional[Dict] = None,
+                 editor_options: dict | None = None,
                  filter_type: str = "text",
-                 filter_options: Optional[Dict] = None):
+                 filter_options: dict | None = None):
         """
         Initialize column configuration.
 
@@ -118,28 +130,28 @@ class DataGridWidget(QWidget):
         super().__init__(parent)
 
         # Configuration
-        self._columns: List[ColumnConfig] = []
-        self._filters: List[QWidget] = []
+        self._columns: list[ColumnConfig] = []
+        self._filters: list[QWidget] = []
         self._show_filters = True
         self._show_add_button = True
         self._show_edit_button = True
         self._show_remove_button = True
         self._show_move_buttons = True
-        self._custom_buttons: List[Dict] = []
+        self._custom_buttons: list[dict] = []
 
         # Custom callbacks
-        self._add_callback: Optional[Callable] = None
-        self._edit_callback: Optional[Callable] = None
-        self._remove_callback: Optional[Callable] = None
-        self._refresh_callback: Optional[Callable] = None
-        self._cell_setup_callback: Optional[Callable] = None
+        self._add_callback: Callable | None = None
+        self._edit_callback: Callable | None = None
+        self._remove_callback: Callable | None = None
+        self._refresh_callback: Callable | None = None
+        self._cell_setup_callback: Callable | None = None
 
         # UI Components
-        self.table: Optional[MultiSelectTableWidget] = None
-        self.filter_table: Optional[QTableWidget] = None
+        self.table: MultiSelectTableWidget | None = None
+        self.filter_table: QTableWidget | None = None
 
         # Sorting state
-        self._original_order: List[List[Any]] = []
+        self._original_order: list[list[Any]] = []
         self._sort_column: int = -1
         self._sort_order: int = 0  # 0 = unsorted, 1 = ascending, 2 = descending
 
@@ -151,13 +163,13 @@ class DataGridWidget(QWidget):
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(5)
 
-    def configure(self, columns: List[ColumnConfig],
+    def configure(self, columns: list[ColumnConfig],
                   show_filters: bool = True,
                   show_add_button: bool = True,
                   show_edit_button: bool = True,
                   show_remove_button: bool = True,
                   show_move_buttons: bool = True,
-                  custom_buttons: Optional[List[Dict]] = None):
+                  custom_buttons: list[dict] | None = None):
         """
         Configure the grid widget.
 
@@ -378,7 +390,7 @@ class DataGridWidget(QWidget):
 
         self._apply_filters()
 
-    def _get_sort_key(self, row_data: List[Any], column: int):
+    def _get_sort_key(self, row_data: list[Any], column: int):
         """Get sort key for a row's column value."""
         if column >= len(row_data):
             return ""
@@ -648,7 +660,7 @@ class DataGridWidget(QWidget):
             # Default behavior: emit data_changed signal to notify listeners
             self.data_changed.emit()
 
-    def add_row(self, data: Optional[List[Any]] = None) -> int:
+    def add_row(self, data: list[Any] | None = None) -> int:
         """
         Add a new row to the grid.
 
@@ -726,7 +738,7 @@ class DataGridWidget(QWidget):
         # Store checkbox reference for easy access
         widget.checkbox = checkbox
 
-    def _setup_combobox_cell(self, row: int, col: int, value: str, items: List[str], editable: bool = False):
+    def _setup_combobox_cell(self, row: int, col: int, value: str, items: list[str], editable: bool = False):
         """Setup a combobox cell with optional editability."""
         combo = QComboBox()
         combo.setEditable(editable)
@@ -751,7 +763,7 @@ class DataGridWidget(QWidget):
 
         self.table.setCellWidget(row, col, combo)
 
-    def _setup_combobox_data_cell(self, row: int, col: int, value: str, items: List[str], items_data: List[str]):
+    def _setup_combobox_data_cell(self, row: int, col: int, value: str, items: list[str], items_data: list[str]):
         """Setup a combobox cell with separate display text and data values."""
         combo = QComboBox()
         combo.setEditable(False)
@@ -768,7 +780,7 @@ class DataGridWidget(QWidget):
 
         self.table.setCellWidget(row, col, combo)
 
-    def remove_selected_rows(self, confirm: bool = True) -> List[int]:
+    def remove_selected_rows(self, confirm: bool = True) -> list[int]:
         """
         Remove all selected rows.
 
@@ -996,7 +1008,7 @@ class DataGridWidget(QWidget):
 
         self.data_changed.emit()
 
-    def _populate_row(self, row: int, data: List[Any]):
+    def _populate_row(self, row: int, data: list[Any]):
         """Populate a row with data (helper method for move operations)."""
         for col_idx, col in enumerate(self._columns):
             value = data[col_idx] if col_idx < len(data) else ""
@@ -1037,7 +1049,7 @@ class DataGridWidget(QWidget):
 
         self.row_moved.emit(row1, row2)
 
-    def get_row_data(self, row: int) -> List[Any]:
+    def get_row_data(self, row: int) -> list[Any]:
         """
         Get data from a specific row.
 
@@ -1096,7 +1108,7 @@ class DataGridWidget(QWidget):
 
         return data
 
-    def get_all_data(self) -> List[List[Any]]:
+    def get_all_data(self) -> list[list[Any]]:
         """
         Get all data from the grid.
 
@@ -1108,7 +1120,7 @@ class DataGridWidget(QWidget):
             all_data.append(self.get_row_data(row))
         return all_data
 
-    def set_row_data(self, row: int, data: List[Any]):
+    def set_row_data(self, row: int, data: list[Any]):
         """
         Set data for a specific row.
 

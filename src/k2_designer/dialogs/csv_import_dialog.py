@@ -23,13 +23,25 @@ See LICENSE file for full terms.
 
 import csv
 from io import StringIO
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTextEdit,
-                             QPushButton, QLabel, QComboBox, QCheckBox,
-                             QGroupBox, QFormLayout, QFileDialog, QMessageBox,
-                             QTableWidget, QTableWidgetItem, QHeaderView,
-                             QDialogButtonBox)
-from PySide6.QtCore import Qt
+
 from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTextEdit,
+    QVBoxLayout,
+)
 
 
 class CSVImportDialog(QDialog):
@@ -182,7 +194,7 @@ class CSVImportDialog(QDialog):
 
         if file_path:
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, encoding='utf-8') as f:
                     content = f.read()
                 self.csv_text.setPlainText(content)
                 self.preview_status.setText(f"✓ Data loaded from: {file_path}")

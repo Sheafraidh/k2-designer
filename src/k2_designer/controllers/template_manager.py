@@ -23,7 +23,6 @@ See LICENSE file for full terms.
 
 import os
 import re
-from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 
@@ -43,7 +42,7 @@ class TemplateManager:
 
     def __init__(self, templates_root_dir: str):
         self.templates_root_dir = templates_root_dir
-        self.templates: Dict[str, List[TemplateInfo]] = {}  # group -> list of templates
+        self.templates: dict[str, list[TemplateInfo]] = {}  # group -> list of templates
         self._scan_templates()
 
     def _scan_templates(self):
@@ -70,7 +69,7 @@ class TemplateManager:
 
         print(f"✅ Scanned {sum(len(t) for t in self.templates.values())} templates in {len(self.templates)} groups")
 
-    def _scan_group_directory(self, group_name: str, directory_path: str) -> List[TemplateInfo]:
+    def _scan_group_directory(self, group_name: str, directory_path: str) -> list[TemplateInfo]:
         """Scan a specific group directory for template files."""
         templates = []
 
@@ -86,10 +85,10 @@ class TemplateManager:
 
         return templates
 
-    def _parse_template_file(self, filepath: str, filename: str, group_name: str) -> Optional[TemplateInfo]:
+    def _parse_template_file(self, filepath: str, filename: str, group_name: str) -> TemplateInfo | None:
         """Parse a template file and extract metadata from the header."""
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(filepath, encoding='utf-8') as f:
                 content = f.read()
 
             # Extract metadata from Jinja2 comment block at the start
@@ -144,15 +143,15 @@ class TemplateManager:
         else:
             return 'unknown'
 
-    def get_groups(self) -> List[str]:
+    def get_groups(self) -> list[str]:
         """Get list of template groups (directory names)."""
         return sorted(self.templates.keys())
 
-    def get_templates_for_group(self, group_name: str) -> List[TemplateInfo]:
+    def get_templates_for_group(self, group_name: str) -> list[TemplateInfo]:
         """Get all templates for a specific group."""
         return self.templates.get(group_name, [])
 
-    def get_templates_for_object_type(self, object_type: str) -> Dict[str, List[TemplateInfo]]:
+    def get_templates_for_object_type(self, object_type: str) -> dict[str, list[TemplateInfo]]:
         """Get all templates for a specific object type, grouped by directory."""
         result = {}
 
@@ -163,7 +162,7 @@ class TemplateManager:
 
         return result
 
-    def get_template_info(self, filepath: str) -> Optional[TemplateInfo]:
+    def get_template_info(self, filepath: str) -> TemplateInfo | None:
         """Get template info by filepath."""
         for templates in self.templates.values():
             for template in templates:
@@ -171,7 +170,7 @@ class TemplateManager:
                     return template
         return None
 
-    def get_all_templates(self) -> List[TemplateInfo]:
+    def get_all_templates(self) -> list[TemplateInfo]:
         """Get all templates as a flat list."""
         result = []
         for templates in self.templates.values():
