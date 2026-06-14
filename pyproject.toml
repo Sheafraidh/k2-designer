@@ -3,10 +3,7 @@ name = "k2-designer"
 version = "1.0.0"
 description = "Database schema designer with visual ER diagrams and SQL generation"
 requires-python = ">=3.13"
-dependencies = [
-    "k2core",
-    "PySide6>=6.5.0",
-]
+dependencies = ["k2gui"]
 
 [project.scripts]
 k2-designer = "k2gui:main"
