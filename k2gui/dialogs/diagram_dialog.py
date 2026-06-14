@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from ..models import Diagram
+from k2core.models import Diagram
 
 
 class DiagramDialog(QDialog):

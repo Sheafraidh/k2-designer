@@ -110,7 +110,6 @@ class ProjectManager:
             "stereotypes": [stereotype.to_dict() for stereotype in sorted(project.stereotypes, key=lambda x: x.guid)],
             "tables": [table.to_dict() for table in sorted(project.tables, key=lambda x: x.guid)],
             "sequences": [seq.to_dict() for seq in sorted(project.sequences, key=lambda x: x.guid)],
-            # Note: foreign_keys are no longer saved - they're auto-built from table keys
             "diagrams": [diagram.to_dict() for diagram in sorted(project.diagrams, key=lambda x: x.guid)]
         }
 
@@ -270,8 +269,6 @@ class ProjectManager:
                 )
                 project.add_sequence(sequence)
 
-            # Auto-build foreign_keys index from table keys for backward compatibility
-            # This replaces the old separate foreign_keys storage
             self._build_foreign_keys_index(project)
 
             # Load diagrams

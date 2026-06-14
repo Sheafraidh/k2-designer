@@ -3,14 +3,10 @@ name = "k2-designer"
 version = "1.0.0"
 description = "Database schema designer with visual ER diagrams and SQL generation"
 requires-python = ">=3.13"
-dependencies = [
-    "PySide6>=6.5.0",
-    "oracledb>=1.4.0",
-    "jinja2>=3.1.0",
-]
+dependencies = ["k2gui"]
 
 [project.scripts]
-k2-designer = "k2_designer:main"
+k2-designer = "k2gui:main"
 
 [project.optional-dependencies]
 dev = [
@@ -33,8 +29,15 @@ ignore = [
     "E501",  # line too long (handled by formatter)
 ]
 
+[tool.uv.workspace]
+members = ["k2core", "k2gui"]
+
+[tool.uv.sources]
+k2core = { workspace = true }
+k2gui = { workspace = true }
+
 [tool.ruff.lint.isort]
-known-first-party = ["k2_designer"]
+known-first-party = ["k2gui", "k2core"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -45,4 +48,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["k2_designer"]
+packages = ["k2gui"]

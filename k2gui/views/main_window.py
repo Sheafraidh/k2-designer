@@ -35,10 +35,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..controllers.project_manager import ProjectManager
-from ..controllers.user_settings import UserSettingsManager
+from k2core.controllers.project_manager import ProjectManager
+from k2core.controllers.user_settings import UserSettingsManager
 from ..dialogs.stereotype_dialog import StereotypeDialog
-from ..models import Project
+from k2core.models import Project
 from .diagram_view import DiagramView
 from .object_browser import ObjectBrowser
 
@@ -763,7 +763,7 @@ class MainWindow(QMainWindow):
 
         if reply == QMessageBox.StandardButton.Yes:
             try:
-                from ..controllers.test_data_generator import TestDataGenerator
+                from k2core.controllers.test_data_generator import TestDataGenerator
 
                 # Generate the test data
                 TestDataGenerator.generate_hr_schema(self.current_project)

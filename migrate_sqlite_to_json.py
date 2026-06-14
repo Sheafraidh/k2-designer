@@ -34,10 +34,10 @@ from typing import Optional
 # Add src directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from k2_designer.models import (Project, Domain, Owner, Table, Column,
-                                Key, Index, Partitioning, PartitionType,
-                                Sequence, Diagram)
-from k2_designer.models.base import Stereotype, StereotypeType
+from k2core.models import (Project, Domain, Owner, Table, Column,
+                           Key, Index, Partitioning, PartitionType,
+                           Sequence, Diagram)
+from k2core.models.base import Stereotype, StereotypeType
 
 
 def is_sqlite_file(file_path: str) -> bool:
@@ -296,7 +296,7 @@ def migrate_sqlite_to_json(sqlite_file: str, json_file: str = None) -> bool:
     print(f"   - {len(project.diagrams)} diagrams")
 
     # Save to JSON
-    from k2_designer.controllers.project_manager import ProjectManager
+    from k2core.controllers.project_manager import ProjectManager
     pm = ProjectManager()
     pm.current_project = project
 

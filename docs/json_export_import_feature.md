@@ -39,7 +39,7 @@ The K2 Designer now supports exporting and importing project data in JSON format
 ### Programmatic Usage
 
 ```python
-from k2_designer.controllers.project_manager import ProjectManager
+from k2gui.controllers.project_manager import ProjectManager
 
 # Create or load a project
 pm = ProjectManager()

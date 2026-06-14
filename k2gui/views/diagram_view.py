@@ -41,7 +41,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..models import Diagram, Project, Sequence, Table
+from k2core.models import Diagram, Project, Sequence, Table
 
 
 class TableGraphicsItem(QGraphicsRectItem):
