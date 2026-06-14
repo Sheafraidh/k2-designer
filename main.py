@@ -28,7 +28,7 @@ import warnings
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
-from src.k2_designer.views.main_window import MainWindow
+from k2_designer.views.main_window import MainWindow
 
 # Suppress macOS NSOpenPanel warnings
 if sys.platform == "darwin":  # macOS
@@ -128,7 +128,7 @@ def main():
 
     # Set application icon
     from PySide6.QtGui import QIcon
-    icon_path = os.path.join(os.path.dirname(__file__), 'src', 'k2_designer', 'resources', 'k2_icon.png')
+    icon_path = os.path.join(os.path.dirname(__file__), 'k2_designer', 'resources', 'k2_icon.png')
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
 
@@ -140,7 +140,7 @@ def main():
     app.processEvents()  # Process events to get proper window geometry
 
     # Show splash screen (now parent window is properly positioned)
-    from src.k2_designer.dialogs.about_dialog import SplashScreen
+    from k2_designer.dialogs.about_dialog import SplashScreen
     splash = SplashScreen(parent=main_window)
     splash.show()
     app.processEvents()  # Process events to ensure splash is shown
