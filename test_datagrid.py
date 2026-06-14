@@ -9,7 +9,7 @@ def test_imports():
     print("Testing imports...")
 
     try:
-        from src.k2_designer.widgets import DataGridWidget, ColumnConfig
+        from k2_designer.widgets import DataGridWidget, ColumnConfig
         print("✓ DataGridWidget and ColumnConfig imported successfully")
     except ImportError as e:
         print(f"✗ Failed to import: {e}")
@@ -29,7 +29,7 @@ def test_column_config():
     """Test ColumnConfig creation."""
     print("\nTesting ColumnConfig...")
 
-    from src.k2_designer.widgets import ColumnConfig
+    from k2_designer.widgets import ColumnConfig
     from PySide6.QtWidgets import QHeaderView
 
     try:
@@ -54,7 +54,7 @@ def test_structure():
     """Test DataGridWidget structure without GUI."""
     print("\nTesting DataGridWidget structure...")
 
-    from src.k2_designer.widgets import DataGridWidget
+    from k2_designer.widgets import DataGridWidget
 
     # Check that the class has expected methods
     expected_methods = [
