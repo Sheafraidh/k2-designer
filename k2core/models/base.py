@@ -70,13 +70,6 @@ class Stereotype:
         )
 
 
-# Legacy enum for backward compatibility - will be replaced by custom stereotypes
-class LegacyStereotype(Enum):
-    """Legacy table stereotypes."""
-    BUSINESS = "business"
-    TECHNICAL = "technical"
-
-
 class PartitionType(Enum):
     """Partition types."""
     RANGE = "range"
