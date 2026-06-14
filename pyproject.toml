@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [project.scripts]
-k2-designer = "k2_designer:main"
+k2-designer = "k2gui:main"
 
 [project.optional-dependencies]
 dev = [
@@ -39,7 +39,7 @@ members = ["k2core"]
 k2core = { workspace = true }
 
 [tool.ruff.lint.isort]
-known-first-party = ["k2_designer", "k2core"]
+known-first-party = ["k2gui", "k2core"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -50,4 +50,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["k2_designer"]
+packages = ["k2gui"]

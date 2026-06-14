@@ -3,7 +3,7 @@
 ## Import
 
 ```python
-from k2_designer.widgets import DataGridWidget, ColumnConfig
+from k2gui.widgets import DataGridWidget, ColumnConfig
 from PyQt6.QtWidgets import QHeaderView
 ```
 
@@ -230,8 +230,8 @@ columns = [
 
 ## Files
 
-- **Widget**: `src/k2_designer/widgets/data_grid_widget.py`
-- **Examples**: `src/k2_designer/widgets/data_grid_examples.py`
-- **Documentation**: `src/k2_designer/widgets/README.md`
+- **Widget**: `src/k2gui/widgets/data_grid_widget.py`
+- **Examples**: `src/k2gui/widgets/data_grid_examples.py`
+- **Documentation**: `src/k2gui/widgets/README.md`
 - **Integration Guide**: `docs/data_grid_integration.md`
 

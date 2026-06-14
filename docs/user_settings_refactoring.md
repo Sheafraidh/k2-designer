@@ -52,7 +52,7 @@ Settings are now **user-specific** rather than **project-specific**. This is a s
 New controller class for managing user settings:
 
 ```python
-from k2_designer.controllers.user_settings import UserSettingsManager
+from k2gui.controllers.user_settings import UserSettingsManager
 
 # Create manager (automatically loads settings)
 manager = UserSettingsManager()
@@ -256,23 +256,23 @@ self.settings = {
 ## 📝 **Files Summary**
 
 ### Created
-- `src/k2_designer/controllers/user_settings.py` (130 lines)
+- `src/k2gui/controllers/user_settings.py` (130 lines)
 - `test_user_settings.py` (130 lines)
 
 ### Modified
-- `src/k2_designer/views/main_window.py`
+- `src/k2gui/views/main_window.py`
   - Added UserSettingsManager
   - Removed project theme application
   - Updated settings handler
   
-- `src/k2_designer/dialogs/project_settings_dialog.py`
+- `src/k2gui/dialogs/project_settings_dialog.py`
   - Changed to use user_settings
   - Updated UI text
   
-- `src/k2_designer/models/project.py`
+- `src/k2gui/models/project.py`
   - Removed settings dictionary
   
-- `src/k2_designer/controllers/project_manager.py`
+- `src/k2gui/controllers/project_manager.py`
   - Removed settings save/load
   - Removed settings from JSON
 
