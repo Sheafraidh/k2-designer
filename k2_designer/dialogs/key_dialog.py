@@ -35,7 +35,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from ..models.base import Key
+from k2core.models.base import Key
 
 
 class KeyDialog(QDialog):

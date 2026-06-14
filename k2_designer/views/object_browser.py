@@ -36,7 +36,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..models import Diagram, Domain, Owner, Project, Sequence, Table
+from k2core.models import Diagram, Domain, Owner, Project, Sequence, Table
 
 
 class DraggableTreeWidget(QTreeWidget):

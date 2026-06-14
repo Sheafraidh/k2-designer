@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..models.base import Stereotype, StereotypeType
+from k2core.models.base import Stereotype, StereotypeType
 
 
 class StereotypeDialog(QDialog):

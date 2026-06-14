@@ -36,7 +36,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from ..models import Sequence
+from k2core.models import Sequence
 
 
 class SequenceDialog(QDialog):

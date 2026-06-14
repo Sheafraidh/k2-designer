@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from ..models import Owner
+from k2core.models import Owner
 
 
 class OwnerDialog(QDialog):

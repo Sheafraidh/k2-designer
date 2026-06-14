@@ -39,8 +39,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..models import Domain, Owner, Sequence, Table
-from ..models.base import StereotypeType
+from k2core.models import Domain, Owner, Sequence, Table
+from k2core.models.base import StereotypeType
 
 
 class PropertiesPanel(QWidget):

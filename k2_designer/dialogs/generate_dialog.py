@@ -72,8 +72,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from ..controllers.template_manager import TemplateInfo, TemplateManager
-from ..controllers.user_settings import UserSettingsManager
+from k2core.controllers.template_manager import TemplateInfo, TemplateManager
+from k2core.controllers.user_settings import UserSettingsManager
 
 
 class SqlGeneratorWorker(QThread):
@@ -134,7 +134,7 @@ class SqlGeneratorWorker(QThread):
 
             # Check all foreign keys
             if hasattr(table, 'keys'):
-                from ..models.base import Key
+                from k2core.models.base import Key
                 for key in table.keys:
                     if key.key_type == Key.FOREIGN and key.referenced_table:
                         ref_table = key.referenced_table

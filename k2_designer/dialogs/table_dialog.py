@@ -44,9 +44,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..controllers.naming_rules_engine import NamingRulesEngine
-from ..models import Column, Table
-from ..models.base import StereotypeType
+from k2core.controllers.naming_rules_engine import NamingRulesEngine
+from k2core.models import Column, Table
+from k2core.models.base import StereotypeType
 from ..widgets import ColumnConfig, DataGridWidget
 
 
@@ -156,7 +156,7 @@ class TableDialog(QDialog):
         """Connect Referenced Table combobox signals to update Referenced Columns."""
         from PySide6.QtWidgets import QComboBox
 
-        from ..models.base import Key
+        from k2core.models.base import Key
 
         if not hasattr(self, 'keys_grid') or not hasattr(self.keys_grid, 'table') or not self.keys_grid.table:
             return
@@ -506,7 +506,7 @@ class TableDialog(QDialog):
         layout.setSpacing(5)
 
         # Create DataGridWidget for keys
-        from ..models.base import Key
+        from k2core.models.base import Key
         from ..widgets import ColumnConfig, DataGridWidget
 
         self.keys_grid = DataGridWidget()
@@ -809,7 +809,7 @@ class TableDialog(QDialog):
         # After loading all keys, update the Columns comboboxes with current table's columns
         available_columns = self._get_available_columns()
 
-        from ..models.base import Key
+        from k2core.models.base import Key
 
         for row in range(self.keys_grid.table.rowCount()):
             # Update Columns combobox (col 2)
@@ -940,7 +940,7 @@ class TableDialog(QDialog):
             # Get key type from column 1
             key_type_widget = self.keys_grid.get_cell_widget(row, 1)
             if key_type_widget and isinstance(key_type_widget, QComboBox):
-                from ..models.base import Key
+                from k2core.models.base import Key
                 key_type = key_type_widget.currentData()
 
                 # Get columns from column 2
@@ -980,8 +980,8 @@ class TableDialog(QDialog):
             table_name = self.name_edit.text().strip()
             if table_name:
                 # Create temporary table with existing indexes from grid to get correct count
-                from ..models import Table as TempTable
-                from ..models.base import Index
+                from k2core.models import Table as TempTable
+                from k2core.models.base import Index
                 temp_table = TempTable(name=table_name, owner=self.owner_combo.currentText())
 
                 # Add existing indexes from grid to temp table for counting
@@ -1019,7 +1019,7 @@ class TableDialog(QDialog):
 
     def _add_foreign_key(self):
         """Add a new foreign key row with auto-generated name."""
-        from ..models.base import Key
+        from k2core.models.base import Key
 
         # Get current table name
         table_name = self.name_edit.text().strip()
@@ -1029,7 +1029,7 @@ class TableDialog(QDialog):
             return
 
         # Create temporary table with existing keys from grid to get correct count
-        from ..models import Table as TempTable
+        from k2core.models import Table as TempTable
         temp_table = TempTable(name=table_name, owner=self.owner_combo.currentText())
 
         # Add existing keys from grid to temp table for counting
@@ -1063,7 +1063,7 @@ class TableDialog(QDialog):
 
     def _add_unique_key(self):
         """Add a new unique key row with auto-generated name."""
-        from ..models.base import Key
+        from k2core.models.base import Key
 
         # Get current table name
         table_name = self.name_edit.text().strip()
@@ -1073,7 +1073,7 @@ class TableDialog(QDialog):
             return
 
         # Create temporary table with existing keys from grid to get correct count
-        from ..models import Table as TempTable
+        from k2core.models import Table as TempTable
         temp_table = TempTable(name=table_name, owner=self.owner_combo.currentText())
 
         # Add existing keys from grid to temp table for counting
@@ -1234,7 +1234,7 @@ class TableDialog(QDialog):
             return
 
         try:
-            from ..models.base import Index
+            from k2core.models.base import Index
 
             # Read directly from table.keys, not from the grid
             # This ensures we get the latest state after _sync_keys_from_indexes() runs
@@ -1431,7 +1431,7 @@ class TableDialog(QDialog):
     def _update_table_keys(self):
         """Update table keys from the keys grid widget."""
         try:
-            from ..models.base import Index, Key
+            from k2core.models.base import Index, Key
 
             if not self.table:
                 return
@@ -1540,7 +1540,7 @@ class TableDialog(QDialog):
 
     def _generate_index_name_for_key(self, key):
         """Generate an index name for a key based on naming rules engine."""
-        from ..controllers.naming_rules_engine import NamingRulesEngine
+        from k2core.controllers.naming_rules_engine import NamingRulesEngine
 
         # Use the naming rules engine to generate an appropriate index name
         table_name = self.table.name if self.table else ""
@@ -1562,7 +1562,7 @@ class TableDialog(QDialog):
         except Exception as e:
             print(f"⚠ Error generating index name with naming engine: {e}")
             # Fallback to simple pattern if naming engine fails
-            from ..models.base import Key
+            from k2core.models.base import Key
             if key.key_type == Key.PRIMARY:
                 return f"{table_name}_PK_IDX"
             elif key.key_type == Key.FOREIGN:
@@ -1573,7 +1573,7 @@ class TableDialog(QDialog):
 
     def _update_table_indexes(self):
         """Update table indexes from the indexes grid widget."""
-        from ..models.base import Index
+        from k2core.models.base import Index
 
         if not self.table:
             return

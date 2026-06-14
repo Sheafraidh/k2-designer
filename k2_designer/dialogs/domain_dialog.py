@@ -33,7 +33,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from ..models import Domain
+from k2core.models import Domain
 
 
 class DomainDialog(QDialog):
