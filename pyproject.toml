@@ -33,10 +33,11 @@ ignore = [
 ]
 
 [tool.uv.workspace]
-members = ["k2core"]
+members = ["k2core", "k2gui"]
 
 [tool.uv.sources]
 k2core = { workspace = true }
+k2gui = { workspace = true }
 
 [tool.ruff.lint.isort]
 known-first-party = ["k2gui", "k2core"]
