@@ -142,6 +142,11 @@ class MultiSelectTableWidget(QTableWidget):
         if next_row >= 0:
             self.setCurrentCell(next_row, max(col, 0))
 
+    def contextMenuEvent(self, event):
+        """Show a right-click context menu with common grid operations."""
+        if self._grid:
+            self._grid._show_context_menu(event.globalPos())
+
 
 class ColumnConfig:
     """Configuration for a grid column."""
@@ -768,6 +773,88 @@ class DataGridWidget(QWidget):
                 else:
                     typed.append(val)
             self.add_row(typed)
+
+    # ------------------------------------------------------------------
+    # Context menu
+    # ------------------------------------------------------------------
+
+    def _show_context_menu(self, global_pos):
+        """Show right-click context menu at the given global position."""
+        from PySide6.QtGui import QAction
+        from PySide6.QtWidgets import QMenu
+
+        menu = QMenu(self)
+
+        copy_action = QAction("Copy", self)
+        copy_action.setShortcut("Ctrl+C")
+        copy_action.triggered.connect(self._copy_to_clipboard)
+        menu.addAction(copy_action)
+
+        paste_action = QAction("Paste", self)
+        paste_action.setShortcut("Ctrl+V")
+        paste_action.triggered.connect(self._paste_from_clipboard)
+        menu.addAction(paste_action)
+
+        menu.addSeparator()
+
+        if self._show_add_button:
+            above_action = QAction("Insert Row Above", self)
+            above_action.triggered.connect(self._insert_row_above)
+            menu.addAction(above_action)
+
+            below_action = QAction("Insert Row Below", self)
+            below_action.triggered.connect(self._insert_row_below)
+            menu.addAction(below_action)
+
+        if self._show_remove_button:
+            delete_action = QAction("Delete Selected Rows", self)
+            delete_action.triggered.connect(self._on_remove)
+            menu.addAction(delete_action)
+
+        if self._show_move_buttons:
+            menu.addSeparator()
+            top_action = QAction("Move to Top", self)
+            top_action.triggered.connect(self._move_row_to_top)
+            menu.addAction(top_action)
+
+            bottom_action = QAction("Move to Bottom", self)
+            bottom_action.triggered.connect(self._move_row_to_bottom)
+            menu.addAction(bottom_action)
+
+        menu.exec(global_pos)
+
+    def _insert_row_at(self, index: int):
+        """Insert an empty row at the given index."""
+        self.table.insertRow(index)
+        for col_idx, col in enumerate(self._columns):
+            if col.editor_type == "text":
+                self.table.setItem(index, col_idx, QTableWidgetItem(""))
+            elif col.editor_type == "checkbox":
+                self._setup_checkbox_cell(index, col_idx, False)
+            elif col.editor_type == "checkbox_centered":
+                self._setup_checkbox_centered_cell(index, col_idx, False)
+            elif col.editor_type == "combobox":
+                self._setup_combobox_cell(index, col_idx, "",
+                                          col.editor_options.get("items", []),
+                                          col.editor_options.get("editable", False))
+            elif col.editor_type == "combobox_data":
+                items = col.editor_options.get("items", [])
+                self._setup_combobox_data_cell(index, col_idx, "",
+                                               items,
+                                               col.editor_options.get("items_data", items))
+            if self._cell_setup_callback:
+                self._cell_setup_callback(index, col_idx, "")
+        self.table.setCurrentCell(index, 0)
+        self.row_added.emit(index)
+        self.data_changed.emit()
+
+    def _insert_row_above(self):
+        current = self.table.currentRow()
+        self._insert_row_at(current if current >= 0 else 0)
+
+    def _insert_row_below(self):
+        current = self.table.currentRow()
+        self._insert_row_at(current + 1 if current >= 0 else self.table.rowCount())
 
     # ------------------------------------------------------------------
 
