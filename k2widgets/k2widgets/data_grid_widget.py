@@ -107,7 +107,18 @@ class MultiSelectTableWidget(QTableWidget):
         key = event.key()
         mods = event.modifiers()
 
-        # Ctrl+C / Ctrl+V handled later (commit 4); no-op here for now.
+        # Clipboard
+        if mods == Qt.KeyboardModifier.ControlModifier:
+            if key == Qt.Key.Key_C:
+                if self._grid:
+                    self._grid._copy_to_clipboard()
+                event.accept()
+                return
+            elif key == Qt.Key.Key_V:
+                if self._grid:
+                    self._grid._paste_from_clipboard()
+                event.accept()
+                return
 
         # Enter (when not in an editor) → navigate down or add row.
         # Tab / Shift+Tab → Qt's default delegate logic (EditNextItem /
@@ -706,6 +717,57 @@ class DataGridWidget(QWidget):
             if self.table.cellWidget(r, col) is widget:
                 return r
         return None
+
+    # ------------------------------------------------------------------
+    # Clipboard
+    # ------------------------------------------------------------------
+
+    def _copy_to_clipboard(self):
+        """Copy selected rows to the system clipboard as TSV (Excel-compatible)."""
+        from PySide6.QtWidgets import QApplication
+
+        selected_rows = sorted({item.row() for item in self.table.selectedItems()})
+        if not selected_rows:
+            row = self.table.currentRow()
+            if row >= 0:
+                selected_rows = [row]
+        if not selected_rows:
+            return
+
+        lines = []
+        for row in selected_rows:
+            if self.table.isRowHidden(row):
+                continue
+            cells = [str(v) for v in self.get_row_data(row)]
+            lines.append("\t".join(cells))
+
+        if lines:
+            QApplication.clipboard().setText("\n".join(lines))
+
+    def _paste_from_clipboard(self):
+        """Paste TSV text from the system clipboard as new rows."""
+        from PySide6.QtWidgets import QApplication
+
+        text = QApplication.clipboard().text()
+        if not text:
+            return
+
+        for line in text.splitlines():
+            if not line.strip():
+                continue
+            values: list[Any] = line.split("\t")
+            # Pad to column count
+            while len(values) < len(self._columns):
+                values.append("")
+            values = values[: len(self._columns)]
+            # Coerce boolean columns
+            typed: list[Any] = []
+            for val, col_cfg in zip(values, self._columns):
+                if col_cfg.editor_type in ("checkbox", "checkbox_centered"):
+                    typed.append(str(val).lower() in ("true", "1", "yes", "on"))
+                else:
+                    typed.append(val)
+            self.add_row(typed)
 
     # ------------------------------------------------------------------
 
