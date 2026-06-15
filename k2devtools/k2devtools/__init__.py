@@ -19,8 +19,3 @@ without a commercial agreement.
 For commercial licensing, contact: sheafraidh@gmail.com
 See LICENSE file for full terms.
 """
-
-from k2widgets import ColumnConfig, DataGridWidget
-
-__all__ = ["DataGridWidget", "ColumnConfig"]
-
