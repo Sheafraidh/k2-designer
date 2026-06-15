@@ -123,7 +123,7 @@ class Table(DatabaseObject):
             'editionable': self.editionable,
             'comment': self.comment,
             'columns': [col.model_dump(mode='json') for col in self.columns],  # Preserve user-defined order
-            'keys': [key.to_dict() for key in self.keys],  # Preserve user-defined order
+            'keys': [key.model_dump(mode='json') for key in self.keys],  # Preserve user-defined order
             'indexes': [idx.model_dump(mode='json') for idx in self.indexes],  # Preserve user-defined order
             'partitioning': self.partitioning.model_dump(mode='json') if self.partitioning else None
         }
@@ -148,7 +148,7 @@ class Table(DatabaseObject):
 
         # Load keys
         for key_data in data.get('keys', []):
-            table.add_key(Key.from_dict(key_data))
+            table.add_key(Key.model_validate(key_data))
 
         # Load indexes
         for idx_data in data.get('indexes', []):

@@ -21,7 +21,7 @@ See LICENSE file for full terms.
 """
 
 
-from .base import Column, DatabaseObject, Index, Key, Partitioning, PartitionType, Stereotype
+from .base import Column, DatabaseObject, Index, Key, KeyType, Partitioning, PartitionType, Stereotype
 from .diagram import Diagram, DiagramItem
 from .domain import Domain
 from .owner import Owner
@@ -30,7 +30,7 @@ from .sequence import Sequence
 from .table import Table
 
 __all__ = [
-    'DatabaseObject', 'Column', 'Key', 'Index', 'Partitioning',
+    'DatabaseObject', 'Column', 'Key', 'KeyType', 'Index', 'Partitioning',
     'Stereotype', 'PartitionType', 'Domain', 'Owner',
     'Table', 'Sequence', 'Diagram', 'DiagramItem', 'Project'
 ]
