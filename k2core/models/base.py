@@ -24,6 +24,9 @@ See LICENSE file for full terms.
 import uuid
 from abc import ABC, abstractmethod
 from enum import Enum
+from typing import ClassVar
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class StereotypeType(Enum):
@@ -96,142 +99,72 @@ class DatabaseObject(ABC):
         pass
 
 
-class Column:
+class Column(BaseModel):
     """Database column definition."""
 
-    def __init__(self, name: str, data_type: str, nullable: bool = True,
-                 comment: str | None = None, default: str | None = None,
-                 domain: str | None = None, stereotype: str | None = None, guid: str | None = None):
-        self.name = name
-        self.data_type = data_type
-        self.nullable = nullable
-        self.comment = comment
-        self.default = default
-        self.domain = domain
-        self.stereotype = stereotype  # Reference to stereotype name
-        self.guid = guid or str(uuid.uuid4())
+    name: str
+    data_type: str
+    nullable: bool = True
+    comment: str | None = None
+    default: str | None = None
+    domain: str | None = None
+    stereotype: str | None = None
+    guid: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
-    def to_dict(self) -> dict:
-        return {
-            'guid': self.guid,
-            'name': self.name,
-            'data_type': self.data_type,
-            'nullable': self.nullable,
-            'comment': self.comment,
-            'default': self.default,
-            'domain': self.domain,
-            'stereotype': self.stereotype
-        }
-
+    @field_validator('guid', mode='before')
     @classmethod
-    def from_dict(cls, data: dict):
-        return cls(
-            name=data['name'],
-            data_type=data['data_type'],
-            nullable=data.get('nullable', True),
-            comment=data.get('comment'),
-            default=data.get('default'),
-            domain=data.get('domain'),
-            stereotype=data.get('stereotype'),
-            guid=data.get('guid')
-        )
+    def _ensure_guid(cls, v):
+        return v or str(uuid.uuid4())
 
 
-class Key:
-    """Database key definition."""
-
-    # Key types
+class KeyType(str, Enum):
+    """Key type — str Enum so comparisons with plain strings still work."""
     PRIMARY = "PRIMARY"
     FOREIGN = "FOREIGN"
     UNIQUE = "UNIQUE"
 
-    def __init__(self, name: str, columns: list[str], key_type: str = UNIQUE,
-                 referenced_table: str | None = None, referenced_columns: list[str] | None = None,
-                 on_delete: str | None = None, on_update: str | None = None,
-                 associated_index_guid: str | None = None,
-                 guid: str | None = None):
-        self.name = name
-        self.columns = columns
-        self.key_type = key_type  # PRIMARY, FOREIGN, or UNIQUE
-        # Foreign key specific attributes
-        self.referenced_table = referenced_table
-        self.referenced_columns = referenced_columns or []
-        self.on_delete = on_delete  # CASCADE, SET NULL, NO ACTION, etc.
-        self.on_update = on_update  # CASCADE, SET NULL, NO ACTION, etc.
-        self.associated_index_guid = associated_index_guid  # GUID of associated index
-        self.guid = guid or str(uuid.uuid4())
 
-    def to_dict(self) -> dict:
-        return {
-            'guid': self.guid,
-            'name': self.name,
-            'columns': self.columns,
-            'key_type': self.key_type,
-            'referenced_table': self.referenced_table,
-            'referenced_columns': self.referenced_columns,
-            'on_delete': self.on_delete,
-            'on_update': self.on_update,
-            'associated_index_guid': self.associated_index_guid
-        }
+class Key(BaseModel):
+    """Database key definition."""
 
+    # Class-level aliases kept for backward compatibility with GUI code
+    # that references Key.PRIMARY / Key.FOREIGN / Key.UNIQUE.
+    PRIMARY: ClassVar[KeyType] = KeyType.PRIMARY
+    FOREIGN: ClassVar[KeyType] = KeyType.FOREIGN
+    UNIQUE: ClassVar[KeyType] = KeyType.UNIQUE
+
+    name: str
+    columns: list[str]
+    key_type: KeyType = KeyType.UNIQUE
+    referenced_table: str | None = None
+    referenced_columns: list[str] = Field(default_factory=list)
+    on_delete: str | None = None
+    on_update: str | None = None
+    associated_index_guid: str | None = None
+    guid: str = Field(default_factory=lambda: str(uuid.uuid4()))
+
+    @field_validator('guid', mode='before')
     @classmethod
-    def from_dict(cls, data: dict):
-        return cls(
-            name=data['name'],
-            columns=data['columns'],
-            key_type=data.get('key_type', cls.UNIQUE),
-            referenced_table=data.get('referenced_table'),
-            referenced_columns=data.get('referenced_columns', []),
-            on_delete=data.get('on_delete'),
-            on_update=data.get('on_update'),
-            associated_index_guid=data.get('associated_index_guid'),
-            guid=data.get('guid')
-        )
+    def _ensure_guid(cls, v):
+        return v or str(uuid.uuid4())
 
 
-class Index:
+class Index(BaseModel):
     """Database index definition."""
 
-    def __init__(self, name: str, columns: list[str], tablespace: str | None = None, guid: str | None = None):
-        self.name = name
-        self.columns = columns
-        self.tablespace = tablespace
-        self.guid = guid or str(uuid.uuid4())
+    name: str
+    columns: list[str]
+    tablespace: str | None = None
+    guid: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
-    def to_dict(self) -> dict:
-        return {
-            'guid': self.guid,
-            'name': self.name,
-            'columns': self.columns,
-            'tablespace': self.tablespace
-        }
-
+    @field_validator('guid', mode='before')
     @classmethod
-    def from_dict(cls, data: dict):
-        return cls(
-            name=data['name'],
-            columns=data['columns'],
-            tablespace=data.get('tablespace'),
-            guid=data.get('guid')
-        )
+    def _ensure_guid(cls, v):
+        return v or str(uuid.uuid4())
 
 
-class Partitioning:
+class Partitioning(BaseModel):
     """Database partitioning definition."""
 
-    def __init__(self, columns: list[str], partition_type: PartitionType):
-        self.columns = columns
-        self.partition_type = partition_type
-
-    def to_dict(self) -> dict:
-        return {
-            'columns': self.columns,
-            'partition_type': self.partition_type.value
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict):
-        return cls(
-            columns=data['columns'],
-            partition_type=PartitionType(data['partition_type'])
-        )
+    columns: list[str]
+    partition_type: PartitionType

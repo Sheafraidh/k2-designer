@@ -122,10 +122,10 @@ class Table(DatabaseObject):
             'domain': self.domain,
             'editionable': self.editionable,
             'comment': self.comment,
-            'columns': [col.to_dict() for col in self.columns],  # Preserve user-defined order
-            'keys': [key.to_dict() for key in self.keys],  # Preserve user-defined order
-            'indexes': [idx.to_dict() for idx in self.indexes],  # Preserve user-defined order
-            'partitioning': self.partitioning.to_dict() if self.partitioning else None
+            'columns': [col.model_dump(mode='json') for col in self.columns],  # Preserve user-defined order
+            'keys': [key.model_dump(mode='json') for key in self.keys],  # Preserve user-defined order
+            'indexes': [idx.model_dump(mode='json') for idx in self.indexes],  # Preserve user-defined order
+            'partitioning': self.partitioning.model_dump(mode='json') if self.partitioning else None
         }
 
     @classmethod
@@ -144,19 +144,19 @@ class Table(DatabaseObject):
 
         # Load columns
         for col_data in data.get('columns', []):
-            table.add_column(Column.from_dict(col_data))
+            table.add_column(Column.model_validate(col_data))
 
         # Load keys
         for key_data in data.get('keys', []):
-            table.add_key(Key.from_dict(key_data))
+            table.add_key(Key.model_validate(key_data))
 
         # Load indexes
         for idx_data in data.get('indexes', []):
-            table.add_index(Index.from_dict(idx_data))
+            table.add_index(Index.model_validate(idx_data))
 
         # Load partitioning
         if data.get('partitioning'):
-            table.set_partitioning(Partitioning.from_dict(data['partitioning']))
+            table.set_partitioning(Partitioning.model_validate(data['partitioning']))
 
         return table
 
