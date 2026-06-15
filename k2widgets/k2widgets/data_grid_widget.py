@@ -24,7 +24,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import QEvent, QObject, Qt, Signal
+from PySide6.QtCore import QEvent, QItemSelection, QItemSelectionModel, QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QAbstractItemDelegate,
     QComboBox,
@@ -143,6 +143,48 @@ class MultiSelectTableWidget(QTableWidget):
                         # Click outside the multi-selection → clear bulk context
                         self._captured_selection = set()
         super().mousePressEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        """Preserve multi-row selection when double-clicking a text cell to edit it.
+
+        Sequence without this fix:
+          1st click  → mousePressEvent saves _captured_selection={0,1,2},
+                        super() collapses visible selection to {clicked_row}
+          2nd click  → mouseDoubleClickEvent opens inline editor;
+                        table still shows only 1 row selected → confusing
+          commit     → _on_bulk_edit_commit finds _captured_selection correct
+                        (logic works) but the visual state is wrong
+
+        Fix: after super() opens the editor, schedule a deferred call to
+        restore the full visual selection from _captured_selection.  The
+        defer (singleShot 0 ms) lets Qt finish opening the editor first so
+        the selection change does not interfere with editor creation.
+        """
+        if event.button() == Qt.MouseButton.LeftButton:
+            saved = frozenset(self._captured_selection)  # set by mousePressEvent
+            if len(saved) > 1:
+                pos_index = self.indexAt(event.pos())
+                if pos_index.isValid() and pos_index.row() in saved:
+                    super().mouseDoubleClickEvent(event)
+
+                    def _restore_selection():
+                        if not self._captured_selection:
+                            return
+                        model = self.model()
+                        sm = self.selectionModel()
+                        sel = QItemSelection()
+                        for r in saved:
+                            if r < self.rowCount():
+                                sel.select(model.index(r, 0),
+                                           model.index(r, self.columnCount() - 1))
+                        # ClearAndSelect emits one selectionChanged; _update_bulk_selection
+                        # will re-confirm _captured_selection == saved.
+                        sm.select(sel, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+
+                    QTimer.singleShot(0, _restore_selection)
+                    return
+
+        super().mouseDoubleClickEvent(event)
 
     def get_captured_selection(self) -> set[int]:
         return self._captured_selection
