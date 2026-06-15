@@ -168,31 +168,18 @@ class Key:
         )
 
 
-class Index:
+class Index(BaseModel):
     """Database index definition."""
 
-    def __init__(self, name: str, columns: list[str], tablespace: str | None = None, guid: str | None = None):
-        self.name = name
-        self.columns = columns
-        self.tablespace = tablespace
-        self.guid = guid or str(uuid.uuid4())
+    name: str
+    columns: list[str]
+    tablespace: str | None = None
+    guid: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
-    def to_dict(self) -> dict:
-        return {
-            'guid': self.guid,
-            'name': self.name,
-            'columns': self.columns,
-            'tablespace': self.tablespace
-        }
-
+    @field_validator('guid', mode='before')
     @classmethod
-    def from_dict(cls, data: dict):
-        return cls(
-            name=data['name'],
-            columns=data['columns'],
-            tablespace=data.get('tablespace'),
-            guid=data.get('guid')
-        )
+    def _ensure_guid(cls, v):
+        return v or str(uuid.uuid4())
 
 
 class Partitioning:
