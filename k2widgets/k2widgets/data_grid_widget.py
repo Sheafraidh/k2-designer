@@ -158,6 +158,7 @@ class DataGridWidget(QWidget):
         # UI Components
         self.table: MultiSelectTableWidget | None = None
         self.filter_table: QTableWidget | None = None
+        self._edit_btn: QPushButton | None = None
 
         # Sorting state
         self._original_order: list[list[Any]] = []
@@ -275,7 +276,8 @@ class DataGridWidget(QWidget):
                 if col.filter_options.get('editable', False):
                     filter_widget.setEditable(True)
                     filter_widget.lineEdit().setPlaceholderText(f"Filter {col.name}...")
-                    filter_widget.lineEdit().textChanged.connect(self._apply_filters)
+                # currentTextChanged covers both typed text and dropdown selection;
+                # connecting lineEdit().textChanged as well would double-fire on each keystroke.
                 filter_widget.currentTextChanged.connect(self._apply_filters)
                 self._filters.append(filter_widget)
                 self.filter_table.setCellWidget(0, col_idx, filter_widget)
@@ -372,9 +374,8 @@ class DataGridWidget(QWidget):
 
     def _sort_by_column(self, column: int, ascending: bool = True):
         """Sort table by specified column."""
-        # Capture original order if not already captured
-        if not self._original_order:
-            self._capture_original_order()
+        # Always re-capture before each sort so the snapshot reflects current data.
+        self._capture_original_order()
 
         # Get all visible rows data
         rows_data = []
@@ -438,12 +439,12 @@ class DataGridWidget(QWidget):
             toolbar_layout.addWidget(add_btn)
 
         if self._show_edit_button:
-            edit_btn = QPushButton("✎")
-            edit_btn.setToolTip("Edit Row")
-            edit_btn.setFixedSize(28, 28)
-            edit_btn.setStyleSheet("font-size: 14px;")
-            edit_btn.clicked.connect(self._on_edit)
-            toolbar_layout.addWidget(edit_btn)
+            self._edit_btn = QPushButton("✎")
+            self._edit_btn.setToolTip("Edit Row (disabled when multiple rows selected)")
+            self._edit_btn.setFixedSize(28, 28)
+            self._edit_btn.setStyleSheet("font-size: 14px;")
+            self._edit_btn.clicked.connect(self._on_edit)
+            toolbar_layout.addWidget(self._edit_btn)
 
         if self._show_remove_button:
             remove_btn = QPushButton("✕")
@@ -546,7 +547,17 @@ class DataGridWidget(QWidget):
         # Connect main table column resize to sync with filter table
         header.sectionResized.connect(self._on_main_column_resized)
 
+        # Disable Edit button when multiple rows are selected
+        self.table.selectionModel().selectionChanged.connect(self._on_selection_changed)
+
         self.layout.addWidget(self.table)
+
+    def _on_selection_changed(self):
+        """Disable the Edit button when more than one row is selected."""
+        if not self._edit_btn:
+            return
+        selected = {item.row() for item in self.table.selectedItems()}
+        self._edit_btn.setEnabled(len(selected) <= 1)
 
     def _apply_filters(self):
         """Apply filters to show/hide rows based on filter criteria."""
