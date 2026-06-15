@@ -44,10 +44,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+import logging
+
 from k2core.controllers.naming_rules_engine import NamingRulesEngine
 from k2core.models import Column, Table
 from k2core.models.base import StereotypeType
 from ..widgets import ColumnConfig, DataGridWidget
+
+logger = logging.getLogger(__name__)
 
 
 class TableDialog(QDialog):
@@ -1279,9 +1283,7 @@ class TableDialog(QDialog):
             self._load_indexes()
 
         except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print(f"⚠ Error syncing indexes from keys: {e}")
+            logger.exception("Error syncing indexes from keys: %s", e)
 
     def _sync_keys_from_indexes(self):
         """Sync keys grid to reflect indexes that were created/deleted manually in Indexes tab."""
@@ -1320,9 +1322,7 @@ class TableDialog(QDialog):
             self._load_keys()
 
         except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print(f"⚠ Error syncing keys from indexes: {e}")
+            logger.exception("Error syncing keys from indexes: %s", e)
 
     def _on_ok(self):
         """Handle OK button click."""
@@ -1535,8 +1535,7 @@ class TableDialog(QDialog):
                     self.table.add_key(key)
 
         except Exception:
-            import traceback
-            traceback.print_exc()
+            logger.exception("Error updating table keys")
 
     def _generate_index_name_for_key(self, key):
         """Generate an index name for a key based on naming rules engine."""
@@ -1560,7 +1559,7 @@ class TableDialog(QDialog):
             return index_name
 
         except Exception as e:
-            print(f"⚠ Error generating index name with naming engine: {e}")
+            logger.warning("Error generating index name with naming engine: %s", e)
             # Fallback to simple pattern if naming engine fails
             from k2core.models.base import Key
             if key.key_type == Key.PRIMARY:

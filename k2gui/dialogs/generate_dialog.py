@@ -21,16 +21,19 @@ See LICENSE file for full terms.
 """
 
 
+import logging
 import os
 import sys
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 try:
     from jinja2 import Environment, FileSystemLoader
     JINJA2_AVAILABLE = True
 except ImportError:
     JINJA2_AVAILABLE = False
-    print("Warning: jinja2 not available, falling back to basic SQL generation")
+    logger.warning("jinja2 not available, falling back to basic SQL generation")
 
 # Suppress macOS NSOpenPanel warning
 if sys.platform == "darwin":
@@ -279,12 +282,12 @@ class SqlGeneratorWorker(QThread):
                 try:
                     # Create environment that can load from subdirectories
                     self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
-                    print(f"✅ Jinja2 environment ready: {self.templates_dir}")
+                    logger.debug("Jinja2 environment ready: %s", self.templates_dir)
                 except Exception as e:
-                    print(f"⚠️ Error setting up Jinja2 environment: {e}")
+                    logger.warning("Error setting up Jinja2 environment: %s", e)
                     self.jinja_env = None
             else:
-                print(f"⚠️ Templates directory not found: {self.templates_dir}")
+                logger.warning("Templates directory not found: %s", self.templates_dir)
 
     def run(self):
         """Generate SQL files for selected objects."""
@@ -519,7 +522,7 @@ class SqlGeneratorWorker(QThread):
                 template = self.jinja_env.get_template('tables/create_table.sql.j2')
                 return template.render(table=table, inline_constraints=self.inline_constraints)
             except Exception as e:
-                print(f"⚠️ Error rendering table template, falling back to basic generation: {e}")
+                logger.warning("Error rendering table template, falling back to basic generation: %s", e)
 
         # Fallback to basic SQL generation
         sql_parts = []
@@ -562,7 +565,7 @@ class SqlGeneratorWorker(QThread):
                 template = self.jinja_env.get_template('sequences/create_sequence.sql.j2')
                 return template.render(sequence=sequence)
             except Exception as e:
-                print(f"⚠️ Error rendering sequence template, falling back to basic generation: {e}")
+                logger.warning("Error rendering sequence template, falling back to basic generation: %s", e)
 
         # Fallback to basic SQL generation
         sql_parts = []
@@ -605,7 +608,7 @@ class SqlGeneratorWorker(QThread):
                 template = self.jinja_env.get_template('users/create_user.sql.j2')
                 return template.render(owner=owner)
             except Exception as e:
-                print(f"⚠️ Error rendering user template, falling back to basic generation: {e}")
+                logger.warning("Error rendering user template, falling back to basic generation: %s", e)
 
         # Fallback to basic SQL generation
         sql_parts = []

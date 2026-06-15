@@ -22,7 +22,10 @@ See LICENSE file for full terms.
 
 
 import json
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class UserSettingsManager:
@@ -63,9 +66,9 @@ class UserSettingsManager:
             try:
                 with open(self.settings_file, encoding='utf-8') as f:
                     self._settings = json.load(f)
-                print(f"✓ User settings loaded from: {self.settings_file}")
+                logger.debug("User settings loaded from: %s", self.settings_file)
             except Exception as e:
-                print(f"⚠ Error loading user settings: {e}")
+                logger.warning("Error loading user settings: %s", e)
                 self._settings = self._get_default_settings()
         else:
             self._settings = self._get_default_settings()
@@ -76,10 +79,10 @@ class UserSettingsManager:
         try:
             with open(self.settings_file, 'w', encoding='utf-8') as f:
                 json.dump(self._settings, f, indent=2, ensure_ascii=False)
-            print(f"✓ User settings saved to: {self.settings_file}")
+            logger.debug("User settings saved to: %s", self.settings_file)
             return True
         except Exception as e:
-            print(f"✗ Error saving user settings: {e}")
+            logger.error("Error saving user settings: %s", e)
             return False
 
     def get_setting(self, key: str, default=None):

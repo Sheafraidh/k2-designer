@@ -21,9 +21,12 @@ See LICENSE file for full terms.
 """
 
 
+import logging
 import os
 import re
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -48,7 +51,7 @@ class TemplateManager:
     def _scan_templates(self):
         """Scan the templates directory and organize templates by group."""
         if not os.path.exists(self.templates_root_dir):
-            print(f"⚠️ Templates directory not found: {self.templates_root_dir}")
+            logger.warning("Templates directory not found: %s", self.templates_root_dir)
             return
 
         # Clear existing templates
@@ -67,7 +70,10 @@ class TemplateManager:
             if group_templates:
                 self.templates[entry] = group_templates
 
-        print(f"✅ Scanned {sum(len(t) for t in self.templates.values())} templates in {len(self.templates)} groups")
+        logger.info(
+            "Scanned %d templates in %d groups",
+            sum(len(t) for t in self.templates.values()), len(self.templates),
+        )
 
     def _scan_group_directory(self, group_name: str, directory_path: str) -> list[TemplateInfo]:
         """Scan a specific group directory for template files."""
@@ -127,7 +133,7 @@ class TemplateManager:
             )
 
         except Exception as e:
-            print(f"⚠️ Error parsing template {filepath}: {e}")
+            logger.warning("Error parsing template %s: %s", filepath, e)
             return None
 
     def _guess_object_type(self, group_name: str) -> str:

@@ -21,9 +21,12 @@ See LICENSE file for full terms.
 """
 
 import json
+import logging
 import os
 
 from ..models import Project
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectManager:
@@ -62,19 +65,17 @@ class ProjectManager:
                 json.dump(project_data, f, indent=2, ensure_ascii=False)
 
             self.current_project.file_path = self.file_path
-            print(f"✅ Project saved: {self.file_path}")
+            logger.info("Project saved: %s", self.file_path)
             return True
 
         except Exception as e:
-            print(f"❌ Error saving project: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Error saving project: %s", e)
             return False
 
     def load_project(self, file_path: str) -> Project | None:
         """Load a project from JSON format."""
         if not os.path.exists(file_path):
-            print(f"❌ File not found: {file_path}")
+            logger.error("File not found: %s", file_path)
             return None
 
         try:
@@ -89,14 +90,12 @@ class ProjectManager:
                 self.current_project = project
                 self.file_path = file_path
                 project.file_path = file_path
-                print(f"✅ Project loaded: {file_path}")
+                logger.info("Project loaded: %s", file_path)
 
             return project
 
         except Exception as e:
-            print(f"❌ Error loading project: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Error loading project: %s", e)
             return None
 
     def _project_to_dict(self, project: Project) -> dict:
@@ -308,7 +307,5 @@ class ProjectManager:
             return project
 
         except Exception as e:
-            print(f"❌ Error converting dict to project: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Error converting dict to project: %s", e)
             return None

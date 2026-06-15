@@ -21,6 +21,7 @@ See LICENSE file for full terms.
 """
 
 
+import logging
 import math
 
 from PySide6.QtCore import QPointF, Qt, Signal
@@ -42,6 +43,8 @@ from PySide6.QtWidgets import (
 )
 
 from k2core.models import Diagram, Project, Sequence, Table
+
+logger = logging.getLogger(__name__)
 
 
 class TableGraphicsItem(QGraphicsRectItem):
@@ -466,12 +469,12 @@ class TableGraphicsItem(QGraphicsRectItem):
 
     def _start_connection_creation(self):
         """Start the connection creation mode."""
-        print(f"🔴 [DEBUG] Starting connection creation from source table: {self.table.name}")
+        logger.debug("Starting connection creation from source table: %s", self.table.name)
         scene = self.scene()
         if scene and hasattr(scene, 'start_connection_mode'):
             scene.start_connection_mode(self)
         else:
-            print("🔴 [DEBUG] ERROR: No scene or start_connection_mode method available")
+            logger.error("No scene or start_connection_mode method available")
 
 
 class ConnectionGraphicsItem(QGraphicsLineItem):
@@ -796,9 +799,8 @@ class DiagramScene(QGraphicsScene):
                 self._load_diagram_connections()
 
         except Exception as e:
-            print(f"❌ Error during diagram refresh: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error("Error during diagram refresh: %s", e)
+            logger.exception("Error during diagram refresh")
             # Fall back to full refresh
             self.clear()
             self.table_items.clear()
@@ -845,13 +847,13 @@ class DiagramScene(QGraphicsScene):
         if not self.diagram:
             return
 
-        print(f"\n🔗 Loading {len(self.diagram.connections)} saved connections from diagram...")
+        logger.debug("Loading %d saved connections from diagram", len(self.diagram.connections))
 
         for connection in self.diagram.connections:
             source_name = connection.source_table
             target_name = connection.target_table
 
-            print(f"📍 Loading connection: {source_name} -> {target_name}")
+            logger.debug("Loading connection: %s -> %s", source_name, target_name)
 
             # Find source and target table graphics items
             source_item = self.table_items.get(source_name)
@@ -864,14 +866,16 @@ class DiagramScene(QGraphicsScene):
                 connection_item._setup_appearance()  # Refresh appearance with manual flag
                 self.addItem(connection_item)
                 self.connection_items.append(connection_item)
-                print("✅ Connection created successfully")
+                logger.debug("Connection created successfully")
             else:
-                print("❌ Could not find table items for connection:")
-                print(f"   Source '{source_name}': {'found' if source_item else 'NOT FOUND'}")
-                print(f"   Target '{target_name}': {'found' if target_item else 'NOT FOUND'}")
-                print(f"   Available tables: {list(self.table_items.keys())}")
+                logger.warning(
+                    "Could not find table items for connection: source '%s' %s, target '%s' %s. Available: %s",
+                    source_name, "found" if source_item else "NOT FOUND",
+                    target_name, "found" if target_item else "NOT FOUND",
+                    list(self.table_items.keys()),
+                )
 
-        print(f"🔗 Finished loading connections. Total active: {len(self.connection_items)}")
+        logger.debug("Finished loading connections. Total active: %d", len(self.connection_items))
 
     def add_table(self, table: Table, position: QPointF):
         """Add a table to the scene at the specified position."""
@@ -1025,7 +1029,7 @@ class DiagramScene(QGraphicsScene):
 
     def start_connection_mode(self, source_table):
         """Start connection creation mode from the specified table."""
-        print(f"🟢 [DEBUG] Connection mode started with source table: {source_table.table.name}")
+        logger.debug("Connection mode started with source table: %s", source_table.table.name)
 
         self.connection_mode = True
         self.connection_source = source_table
@@ -1051,35 +1055,37 @@ class DiagramScene(QGraphicsScene):
 
     def cancel_connection_mode(self):
         """Cancel connection creation mode."""
-        print("🔴 [DEBUG] Canceling connection mode")
+        logger.debug("Canceling connection mode")
 
         if self.temp_connection_line:
             self.removeItem(self.temp_connection_line)
             self.temp_connection_line = None
-            print("🔴 [DEBUG] Temporary connection line removed")
+            logger.debug("Temporary connection line removed")
 
         self.connection_mode = False
         self.connection_source = None
-        print("🔴 [DEBUG] Connection mode variables reset")
+        logger.debug("Connection mode variables reset")
 
         # Restore normal cursor
         for view in self.views():
             view.setCursor(Qt.CursorShape.ArrowCursor)
-        print("🔴 [DEBUG] Cursor restored to normal")
+        logger.debug("Cursor restored to normal")
 
     def create_manual_connection(self, target_table):
         """Create a manual connection between source and target tables."""
-        print("🟢 [DEBUG] create_manual_connection called")
-        print(f"🟢 [DEBUG] Source: {self.connection_source.table.name if self.connection_source else 'None'}")
-        print(f"🟢 [DEBUG] Target: {target_table.table.name if target_table else 'None'}")
+        logger.debug(
+            "create_manual_connection called — source: %s, target: %s",
+            self.connection_source.table.name if self.connection_source else "None",
+            target_table.table.name if target_table else "None",
+        )
 
         if not self.connection_source or not target_table:
-            print("🟢 [DEBUG] Missing source or target - aborting")
+            logger.debug("Missing source or target — aborting connection")
             return
 
         # Don't connect table to itself
         if self.connection_source == target_table:
-            print("🟢 [DEBUG] Cannot connect table to itself - canceling")
+            logger.debug("Cannot connect table to itself — canceling")
             self.cancel_connection_mode()
             return
 
@@ -1091,15 +1097,15 @@ class DiagramScene(QGraphicsScene):
             None   # No specific target column for manual connections
         )
         connection.is_manual = True  # Mark as manual connection
-        print("🟢 [DEBUG] Connection object created successfully")
+        logger.debug("Connection object created successfully")
 
         # Update appearance after setting the flag
         connection._setup_appearance()
-        print("🟢 [DEBUG] Connection appearance setup complete")
+        logger.debug("Connection appearance setup complete")
 
         self.addItem(connection)
         self.connection_items.append(connection)
-        print(f"🟢 [DEBUG] Connection added to scene. Total connections: {len(self.connection_items)}")
+        logger.debug("Connection added to scene. Total connections: %d", len(self.connection_items))
 
         # Save to diagram if available
         if self.diagram:
@@ -1108,12 +1114,12 @@ class DiagramScene(QGraphicsScene):
                 target_table.table.full_name,
                 'manual'
             )
-            print("🟢 [DEBUG] Connection saved to diagram model")
+            logger.debug("Connection saved to diagram model")
         else:
-            print("🟢 [DEBUG] No diagram available - connection not persisted")
+            logger.debug("No diagram available — connection not persisted")
 
         # Clean up
-        print("🟢 [DEBUG] Cleaning up connection mode...")
+        logger.debug("Cleaning up connection mode")
         self.cancel_connection_mode()
 
         # Refresh diagram view
@@ -1123,11 +1129,11 @@ class DiagramScene(QGraphicsScene):
     def mousePressEvent(self, event):
         """Handle mouse press events."""
         if self.connection_mode:
-            print(f"🔵 [DEBUG] Mouse click in connection mode: {event.button()}")
+            logger.debug("Mouse click in connection mode: %s", event.button())
 
             # Handle connection creation
             if event.button() == Qt.MouseButton.LeftButton:
-                print("🔵 [DEBUG] Left click detected - searching for target table...")
+                logger.debug("Left click detected — searching for target table")
 
                 # Find the table item under the cursor (ignore temp connection line)
                 item = self.itemAt(event.scenePos(), QTransform())
@@ -1143,12 +1149,12 @@ class DiagramScene(QGraphicsScene):
                             item = potential_item
                             break
 
-                print(f"🔵 [DEBUG] Item at click position: {type(item).__name__ if item else 'None'}")
+                logger.debug("Item at click position: %s", type(item).__name__ if item else "None")
 
                 # Check if the clicked item is a table or part of a table
                 if isinstance(item, TableGraphicsItem):
                     target_table = item
-                    print(f"🔵 [DEBUG] Found target table directly: {target_table.table.name}")
+                    logger.debug("Found target table directly: %s", target_table.table.name)
                 else:
                     # Check if it's a child item of a table (like text items)
                     parent = item
@@ -1156,24 +1162,27 @@ class DiagramScene(QGraphicsScene):
                         parent = parent.parentItem()
                     if isinstance(parent, TableGraphicsItem):
                         target_table = parent
-                        print(f"🔵 [DEBUG] Found target table via parent: {target_table.table.name}")
+                        logger.debug("Found target table via parent: %s", target_table.table.name)
                     else:
-                        print("🔵 [DEBUG] No table found under click")
+                        logger.debug("No table found under click")
 
                 if target_table:
                     if target_table == self.connection_source:
-                        print(f"🔵 [DEBUG] Cannot connect table to itself: {target_table.table.name}")
+                        logger.debug("Cannot connect table to itself: %s", target_table.table.name)
                     else:
-                        print(f"🔵 [DEBUG] Creating connection: {self.connection_source.table.name} -> {target_table.table.name}")
+                        logger.debug(
+                            "Creating connection: %s -> %s",
+                            self.connection_source.table.name, target_table.table.name,
+                        )
 
                     # Complete the connection
                     self.create_manual_connection(target_table)
                 else:
-                    print("🔵 [DEBUG] Clicking empty space - canceling connection mode")
+                    logger.debug("Clicking empty space — canceling connection mode")
                     # Cancel if clicking empty space
                     self.cancel_connection_mode()
             elif event.button() == Qt.MouseButton.RightButton:
-                print("🔵 [DEBUG] Right click - canceling connection mode")
+                logger.debug("Right click — canceling connection mode")
                 # Cancel connection mode on right-click
                 self.cancel_connection_mode()
 
@@ -1214,7 +1223,7 @@ class DiagramScene(QGraphicsScene):
 
             if isinstance(item, TableGraphicsItem):
                 target_table = item
-                print(f"🟡 [DEBUG] Cursor over table (direct): {target_table.table.name}")
+                logger.debug("Cursor over table (direct): %s", target_table.table.name)
             elif item:
                 # Check if it's a child item of a table
                 parent = item
@@ -1222,16 +1231,16 @@ class DiagramScene(QGraphicsScene):
                     parent = parent.parentItem()
                 if isinstance(parent, TableGraphicsItem):
                     target_table = parent
-                    print(f"🟡 [DEBUG] Cursor over table (via child): {target_table.table.name}")
+                    logger.debug("Cursor over table (via child): %s", target_table.table.name)
                 else:
-                    print(f"🟡 [DEBUG] Cursor over item: {type(item).__name__}")
+                    logger.debug("Cursor over item: %s", type(item).__name__)
             else:
-                print("🟡 [DEBUG] Cursor over empty space")
+                logger.debug("Cursor over empty space")
 
             # Check if it's a valid target
             if target_table:
                 is_valid = target_table != self.connection_source
-                print(f"🟡 [DEBUG] Valid target: {is_valid} (source: {self.connection_source.table.name})")
+                logger.debug("Valid target: %s (source: %s)", is_valid, self.connection_source.table.name)
 
         super().mouseMoveEvent(event)
 
@@ -1321,7 +1330,7 @@ class DiagramGraphicsView(QGraphicsView):
             mime_data.hasText()):
             # Get the position in scene coordinates
             scene_pos = self.mapToScene(event.position().toPoint())
-            print("Drop position in scene:", scene_pos)
+            logger.debug("Drop position in scene: %s", scene_pos)
 
             # Extract object information from mime data
             if mime_data.hasFormat("application/x-db-table"):
@@ -1522,7 +1531,7 @@ class DiagramView(QWidget):
     def _on_table_dropped(self, object_info, position):
         """Handle when an object is dropped on the diagram."""
         # object_info is a string in format "OWNER.OBJECT_NAME"
-        print(f"Object dropped: {object_info} at position {position}")
+        logger.debug("Object dropped: %s at position %s", object_info, position)
         object_full_name = object_info
 
         # Try to find a table first

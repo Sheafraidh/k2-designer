@@ -20,10 +20,13 @@ For commercial licensing, contact: sheafraidh@gmail.com
 See LICENSE file for full terms.
 """
 
+import logging
 from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtCore import Qt, Signal
+
+logger = logging.getLogger(__name__)
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
@@ -377,7 +380,7 @@ class DataGridWidget(QWidget):
             rows_data.sort(key=lambda row: self._get_sort_key(row, column), reverse=not ascending)
         except Exception as e:
             # If sorting fails, just return without sorting
-            print(f"Sorting failed: {e}")
+            logger.warning("Sorting failed: %s", e)
             return
 
         # Update table with sorted data
