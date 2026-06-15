@@ -122,7 +122,7 @@ class Table(DatabaseObject):
             'domain': self.domain,
             'editionable': self.editionable,
             'comment': self.comment,
-            'columns': [col.to_dict() for col in self.columns],  # Preserve user-defined order
+            'columns': [col.model_dump(mode='json') for col in self.columns],  # Preserve user-defined order
             'keys': [key.to_dict() for key in self.keys],  # Preserve user-defined order
             'indexes': [idx.to_dict() for idx in self.indexes],  # Preserve user-defined order
             'partitioning': self.partitioning.to_dict() if self.partitioning else None
@@ -144,7 +144,7 @@ class Table(DatabaseObject):
 
         # Load columns
         for col_data in data.get('columns', []):
-            table.add_column(Column.from_dict(col_data))
+            table.add_column(Column.model_validate(col_data))
 
         # Load keys
         for key_data in data.get('keys', []):

@@ -25,6 +25,8 @@ import uuid
 from abc import ABC, abstractmethod
 from enum import Enum
 
+from pydantic import BaseModel, Field, field_validator
+
 
 class StereotypeType(Enum):
     """Stereotype types."""
@@ -96,45 +98,22 @@ class DatabaseObject(ABC):
         pass
 
 
-class Column:
+class Column(BaseModel):
     """Database column definition."""
 
-    def __init__(self, name: str, data_type: str, nullable: bool = True,
-                 comment: str | None = None, default: str | None = None,
-                 domain: str | None = None, stereotype: str | None = None, guid: str | None = None):
-        self.name = name
-        self.data_type = data_type
-        self.nullable = nullable
-        self.comment = comment
-        self.default = default
-        self.domain = domain
-        self.stereotype = stereotype  # Reference to stereotype name
-        self.guid = guid or str(uuid.uuid4())
+    name: str
+    data_type: str
+    nullable: bool = True
+    comment: str | None = None
+    default: str | None = None
+    domain: str | None = None
+    stereotype: str | None = None
+    guid: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
-    def to_dict(self) -> dict:
-        return {
-            'guid': self.guid,
-            'name': self.name,
-            'data_type': self.data_type,
-            'nullable': self.nullable,
-            'comment': self.comment,
-            'default': self.default,
-            'domain': self.domain,
-            'stereotype': self.stereotype
-        }
-
+    @field_validator('guid', mode='before')
     @classmethod
-    def from_dict(cls, data: dict):
-        return cls(
-            name=data['name'],
-            data_type=data['data_type'],
-            nullable=data.get('nullable', True),
-            comment=data.get('comment'),
-            default=data.get('default'),
-            domain=data.get('domain'),
-            stereotype=data.get('stereotype'),
-            guid=data.get('guid')
-        )
+    def _ensure_guid(cls, v):
+        return v or str(uuid.uuid4())
 
 
 class Key:
