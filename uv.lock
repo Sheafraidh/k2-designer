@@ -215,6 +215,7 @@ source = { editable = "k2gui" }
 dependencies = [
     { name = "jinja2" },
     { name = "k2core" },
+    { name = "k2widgets" },
     { name = "oracledb" },
     { name = "pyside6" },
 ]
@@ -223,6 +224,7 @@ dependencies = [
 requires-dist = [
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "k2core", editable = "k2core" },
+    { name = "k2widgets", editable = "k2widgets" },
     { name = "oracledb", specifier = ">=1.4.0" },
     { name = "pyside6", specifier = ">=6.5.0" },
 ]

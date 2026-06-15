@@ -5,6 +5,7 @@ description = "K2 Designer GUI — PySide6 views, dialogs and widgets"
 requires-python = ">=3.13"
 dependencies = [
     "k2core",
+    "k2widgets",
     "PySide6>=6.5.0",
     "jinja2>=3.1.0",
     "oracledb>=1.4.0",
@@ -12,6 +13,7 @@ dependencies = [
 
 [tool.uv.sources]
 k2core = { workspace = true }
+k2widgets = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

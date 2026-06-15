@@ -49,7 +49,7 @@ import logging
 from k2core.controllers.naming_rules_engine import NamingRulesEngine
 from k2core.models import Column, Table
 from k2core.models.base import StereotypeType
-from ..widgets import ColumnConfig, DataGridWidget
+from k2widgets import ColumnConfig, DataGridWidget
 
 logger = logging.getLogger(__name__)
 
@@ -413,7 +413,8 @@ class TableDialog(QDialog):
                 resize_mode=QHeaderView.ResizeMode.Fixed,
                 editor_type="checkbox_centered",
                 filter_type="combobox",
-                filter_options={'items': ['All', 'Nullable', 'Not Nullable']}
+                filter_options={'items': ['All', 'Nullable', 'Not Nullable']},
+                filter_matcher=lambda fv, cv: (cv == "true") if fv == "Nullable" else (cv == "false"),
             ),
             ColumnConfig(
                 name="Default",
@@ -436,7 +437,8 @@ class TableDialog(QDialog):
                 editor_type="combobox_data",
                 editor_options={'items': domain_items, 'items_data': domain_items_data},
                 filter_type="combobox",
-                filter_options={'items': ['All', 'No Domain'] + domain_items[1:], 'editable': True}
+                filter_options={'items': ['All', 'No Domain'] + domain_items[1:], 'editable': True},
+                filter_matcher=lambda fv, cv: (not cv) if fv == "No Domain" else (cv == fv.lower()),
             ),
             ColumnConfig(
                 name="Stereotype",
@@ -445,7 +447,8 @@ class TableDialog(QDialog):
                 editor_type="combobox_data",
                 editor_options={'items': stereotype_items, 'items_data': stereotype_items_data},
                 filter_type="combobox",
-                filter_options={'items': ['All', 'No Stereotype'] + stereotype_items[1:], 'editable': True}
+                filter_options={'items': ['All', 'No Stereotype'] + stereotype_items[1:], 'editable': True},
+                filter_matcher=lambda fv, cv: (not cv) if fv == "No Stereotype" else (cv == fv.lower()),
             ),
         ]
 
@@ -511,7 +514,7 @@ class TableDialog(QDialog):
 
         # Create DataGridWidget for keys
         from k2core.models.base import Key
-        from ..widgets import ColumnConfig, DataGridWidget
+        from k2widgets import ColumnConfig, DataGridWidget
 
         self.keys_grid = DataGridWidget()
 
@@ -584,7 +587,8 @@ class TableDialog(QDialog):
                 resize_mode=QHeaderView.ResizeMode.Fixed,
                 editor_type="checkbox_centered",
                 filter_type="combobox",
-                filter_options={'items': ['All', 'Has Index', 'No Index']}
+                filter_options={'items': ['All', 'Has Index', 'No Index']},
+                filter_matcher=lambda fv, cv: (cv == "true") if fv == "Has Index" else (cv != "true"),
             ),
         ]
 
@@ -633,7 +637,7 @@ class TableDialog(QDialog):
         layout.setSpacing(5)
 
         # Create DataGridWidget for indexes
-        from ..widgets import ColumnConfig, DataGridWidget
+        from k2widgets import ColumnConfig, DataGridWidget
 
         self.indexes_grid = DataGridWidget()
 
