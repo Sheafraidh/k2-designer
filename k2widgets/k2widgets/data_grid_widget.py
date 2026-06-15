@@ -137,7 +137,7 @@ class MultiSelectTableWidget(QTableWidget):
                                        Qt.KeyboardModifier.ShiftModifier))
             if no_modifier:
                 pre_click = {item.row() for item in self.selectedItems()}
-                clicked_row = self.indexAt(event.pos()).row()  # -1 if no index
+                clicked_row = self.indexAt(event.position().toPoint()).row()  # -1 if no index
                 if len(pre_click) > 1:
                     if clicked_row in pre_click:
                         # Click within the multi-selection → preserve for bulk edit
@@ -166,7 +166,7 @@ class MultiSelectTableWidget(QTableWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             saved = frozenset(self._captured_selection)  # set by mousePressEvent
             if len(saved) > 1:
-                pos_index = self.indexAt(event.pos())
+                pos_index = self.indexAt(event.position().toPoint())
                 if pos_index.isValid() and pos_index.row() in saved:
                     super().mouseDoubleClickEvent(event)
 
@@ -214,8 +214,6 @@ class MultiSelectTableWidget(QTableWidget):
                 return
 
         # Enter (when not in an editor) → navigate down or add row.
-        # Tab / Shift+Tab → Qt's default delegate logic (EditNextItem /
-        # EditPreviousItem) already handles navigation; let super() run.
         if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and not mods:
             row = self.currentRow()
             col = self.currentColumn()
@@ -224,6 +222,22 @@ class MultiSelectTableWidget(QTableWidget):
             event.accept()
             return
 
+        # Tab from the very last cell (last_row, last_col) → add a new row
+        # instead of wrapping back to (0, 0).  This mirrors Excel behaviour
+        # where Tab at the end of the last row appends a new record.
+        if key == Qt.Key.Key_Tab and not mods:
+            row = self.currentRow()
+            col = self.currentColumn()
+            if row == self.rowCount() - 1 and col == self.columnCount() - 1:
+                can_add = self._grid is not None and self._grid._show_add_button
+                if can_add:
+                    self.addRowRequested.emit()
+                    self.setCurrentCell(self.rowCount() - 1, 0)
+                    event.accept()
+                    return
+
+        # Tab / Shift+Tab (all other positions) → Qt's default delegate logic
+        # (EditNextItem / EditPreviousItem) handles wrap-around navigation.
         super().keyPressEvent(event)
 
     def _navigate_down(self, row: int, col: int):
