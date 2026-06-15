@@ -16,7 +16,7 @@ A reusable Qt6 widget for displaying and editing tabular data with filtering, so
 ## Basic Usage
 
 ```python
-from k2_designer.widgets import DataGridWidget, ColumnConfig
+from k2gui.widgets import DataGridWidget, ColumnConfig
 from PyQt6.QtWidgets import QHeaderView
 
 # Create the widget
@@ -255,7 +255,7 @@ See `data_grid_examples.py` for complete working examples:
 ### Running Examples
 
 ```python
-from k2_designer.widgets.data_grid_examples import KeysGridExample
+from k2gui.widgets.data_grid_examples import KeysGridExample
 
 dialog = KeysGridExample()
 if dialog.exec():
