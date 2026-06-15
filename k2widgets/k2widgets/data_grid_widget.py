@@ -47,9 +47,14 @@ logger = logging.getLogger(__name__)
 class MultiSelectDelegate(QStyledItemDelegate):
     """Custom delegate that handles multi-row editing and keyboard navigation."""
 
-    editingStarted = Signal(int, int)       # row, column
-    enterPressed = Signal(int, int)         # row, column — Enter committed inside a text cell
-    bulkEditCommitted = Signal(object, int, int)  # editor widget, row, col
+    editingStarted = Signal(int, int)   # row, column
+    enterPressed = Signal(int, int)     # row, column — Enter committed inside a text cell
+
+    # NOTE: commitData is a Qt *signal* (not an overridable virtual method).
+    # Defining `def commitData(self, editor)` in Python does NOT override it —
+    # PySide6 keeps returning the SignalInstance when you access self.commitData,
+    # so the Python method is never called by Qt.  Bulk-edit propagation for text
+    # cells is therefore wired through the table's cellChanged signal instead.
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -63,15 +68,13 @@ class MultiSelectDelegate(QStyledItemDelegate):
         self.editingStarted.emit(index.row(), index.column())
         super().setEditorData(editor, index)
 
-    def commitData(self, editor):
-        """Override to emit bulkEditCommitted after the normal commit."""
-        super().commitData(editor)
-        self.bulkEditCommitted.emit(editor, self._editing_row, self._editing_col)
-
     def eventFilter(self, editor, event):
-        """Intercept Enter inside text editors to emit enterPressed instead of staying put."""
+        """Intercept Enter inside text editors: commit, close, then navigate down."""
         if event.type() == QEvent.Type.KeyPress:
             if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                # commitData.emit tells the view to write editor content to the model.
+                # The view's handler fires cellChanged, which DataGridWidget picks up
+                # for bulk-edit propagation.
                 self.commitData.emit(editor)
                 self.closeEditor.emit(editor, QAbstractItemDelegate.EndEditHint.NoHint)
                 self.enterPressed.emit(self._editing_row, self._editing_col)
@@ -746,8 +749,11 @@ class DataGridWidget(QWidget):
 
         # Enter-in-cell navigation (from delegate) and add-row from table
         self.table._delegate.enterPressed.connect(self._on_enter_in_cell)
-        self.table._delegate.bulkEditCommitted.connect(self._on_bulk_edit_commit)
         self.table.addRowRequested.connect(self._on_add)
+
+        # Bulk edit for text cells: cellChanged fires when the view writes the
+        # editor value to the model (on Tab, Enter, or click-elsewhere commit).
+        self.table.cellChanged.connect(self._on_text_cell_changed)
 
         self.layout.addWidget(self.table)
 
@@ -796,30 +802,34 @@ class DataGridWidget(QWidget):
     # Bulk edit
     # ------------------------------------------------------------------
 
-    def _on_bulk_edit_commit(self, editor, row: int, col: int):
-        """Propagate a text-cell edit to all other selected rows in the same column."""
+    def _on_text_cell_changed(self, row: int, col: int):
+        """Propagate a text-cell change to all other rows in _captured_selection.
+
+        Called via table.cellChanged, which fires whenever the view writes an
+        editor's value to the model — on Enter, Tab, or click-elsewhere commit.
+        blockSignals(True) on the table prevents recursive cellChanged during
+        propagation; it does NOT affect the selection model.
+        """
         captured = self.table.get_captured_selection()
-        if len(captured) <= 1 or col < 0:
+        if len(captured) <= 1 or row not in captured:
             return
         if col >= len(self._columns) or self._columns[col].editor_type != "text":
             return
-        value = editor.text() if hasattr(editor, "text") else None
-        if value is None:
+        item = self.table.item(row, col)
+        if item is None:
             return
-        blocked = False
-        for r in captured:
-            if r == row:
-                continue
-            item = self.table.item(r, col)
-            if item:
-                if not blocked:
-                    self.table.blockSignals(True)
-                    blocked = True
-                item.setText(value)
-        if blocked:
+        value = item.text()
+        self.table.blockSignals(True)
+        try:
+            for r in captured:
+                if r == row:
+                    continue
+                target = self.table.item(r, col)
+                if target:
+                    target.setText(value)
+        finally:
             self.table.blockSignals(False)
-        if len(captured) > 1:
-            self.data_changed.emit()
+        self.data_changed.emit()
 
     def _propagate_combobox_change(self, source_widget: QComboBox, col: int):
         """Propagate a combobox selection change to all selected rows in the same column."""
@@ -986,24 +996,30 @@ class DataGridWidget(QWidget):
     def _insert_row_at(self, index: int):
         """Insert an empty row at the given index."""
         self.table.insertRow(index)
-        for col_idx, col in enumerate(self._columns):
-            if col.editor_type == "text":
-                self.table.setItem(index, col_idx, QTableWidgetItem(""))
-            elif col.editor_type == "checkbox":
-                self._setup_checkbox_cell(index, col_idx, False)
-            elif col.editor_type == "checkbox_centered":
-                self._setup_checkbox_centered_cell(index, col_idx, False)
-            elif col.editor_type == "combobox":
-                self._setup_combobox_cell(index, col_idx, "",
-                                          col.editor_options.get("items", []),
-                                          col.editor_options.get("editable", False))
-            elif col.editor_type == "combobox_data":
-                items = col.editor_options.get("items", [])
-                self._setup_combobox_data_cell(index, col_idx, "",
-                                               items,
-                                               col.editor_options.get("items_data", items))
-            if self._cell_setup_callback:
-                self._cell_setup_callback(index, col_idx, "")
+        # Block table signals during setup so cellChanged doesn't trigger
+        # bulk-edit propagation for programmatically inserted empty cells.
+        self.table.blockSignals(True)
+        try:
+            for col_idx, col in enumerate(self._columns):
+                if col.editor_type == "text":
+                    self.table.setItem(index, col_idx, QTableWidgetItem(""))
+                elif col.editor_type == "checkbox":
+                    self._setup_checkbox_cell(index, col_idx, False)
+                elif col.editor_type == "checkbox_centered":
+                    self._setup_checkbox_centered_cell(index, col_idx, False)
+                elif col.editor_type == "combobox":
+                    self._setup_combobox_cell(index, col_idx, "",
+                                              col.editor_options.get("items", []),
+                                              col.editor_options.get("editable", False))
+                elif col.editor_type == "combobox_data":
+                    items = col.editor_options.get("items", [])
+                    self._setup_combobox_data_cell(index, col_idx, "",
+                                                   items,
+                                                   col.editor_options.get("items_data", items))
+                if self._cell_setup_callback:
+                    self._cell_setup_callback(index, col_idx, "")
+        finally:
+            self.table.blockSignals(False)
         self.table.setCurrentCell(index, 0)
         self.row_added.emit(index)
         self.data_changed.emit()
@@ -1147,33 +1163,37 @@ class DataGridWidget(QWidget):
         row = self.table.rowCount()
         self.table.insertRow(row)
 
-        # Setup cells based on column configuration
-        for col_idx, col in enumerate(self._columns):
-            value = data[col_idx] if data and col_idx < len(data) else ""
+        # Block table signals during cell setup so cellChanged does not trigger
+        # bulk-edit propagation for programmatic initial values.
+        self.table.blockSignals(True)
+        try:
+            for col_idx, col in enumerate(self._columns):
+                value = data[col_idx] if data and col_idx < len(data) else ""
 
-            if col.editor_type == "text":
-                self.table.setItem(row, col_idx, QTableWidgetItem(str(value)))
+                if col.editor_type == "text":
+                    self.table.setItem(row, col_idx, QTableWidgetItem(str(value)))
 
-            elif col.editor_type == "checkbox":
-                self._setup_checkbox_cell(row, col_idx, bool(value))
+                elif col.editor_type == "checkbox":
+                    self._setup_checkbox_cell(row, col_idx, bool(value))
 
-            elif col.editor_type == "checkbox_centered":
-                self._setup_checkbox_centered_cell(row, col_idx, bool(value))
+                elif col.editor_type == "checkbox_centered":
+                    self._setup_checkbox_centered_cell(row, col_idx, bool(value))
 
-            elif col.editor_type == "combobox":
-                editable = col.editor_options.get('editable', False)
-                self._setup_combobox_cell(row, col_idx, str(value),
-                                         col.editor_options.get('items', []),
-                                         editable=editable)
+                elif col.editor_type == "combobox":
+                    editable = col.editor_options.get('editable', False)
+                    self._setup_combobox_cell(row, col_idx, str(value),
+                                             col.editor_options.get('items', []),
+                                             editable=editable)
 
-            elif col.editor_type == "combobox_data":
-                items = col.editor_options.get('items', [])
-                items_data = col.editor_options.get('items_data', items)
-                self._setup_combobox_data_cell(row, col_idx, str(value), items, items_data)
+                elif col.editor_type == "combobox_data":
+                    items = col.editor_options.get('items', [])
+                    items_data = col.editor_options.get('items_data', items)
+                    self._setup_combobox_data_cell(row, col_idx, str(value), items, items_data)
 
-            # Allow custom cell setup
-            if self._cell_setup_callback:
-                self._cell_setup_callback(row, col_idx, value)
+                if self._cell_setup_callback:
+                    self._cell_setup_callback(row, col_idx, value)
+        finally:
+            self.table.blockSignals(False)
 
         self._apply_filters()
         self.table.setCurrentCell(row, 0)

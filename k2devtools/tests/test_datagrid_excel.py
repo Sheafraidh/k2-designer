@@ -191,36 +191,28 @@ class TestTabEnterNavigation:
 
 class TestBulkEdit:
     def test_bulk_edit_text_propagates_to_selected_rows(self, grid, qtbot):
-        """Editing a text cell while multiple rows are selected propagates the value."""
-        # Select all rows
+        """Editing a text cell while multiple rows are selected propagates the value.
+
+        Triggers via cellChanged signal (the real runtime path): item.setText()
+        fires cellChanged → _on_text_cell_changed → propagates to other rows.
+        """
         grid.table.selectAll()
         qtbot.wait(50)
-
-        # Simulate the delegate capturing the selection when editing starts
         grid.table._captured_selection = {0, 1, 2}
 
-        # Simulate commit: create a mock editor with the new value
-        from PySide6.QtWidgets import QLineEdit
-        editor = QLineEdit()
-        editor.setText("BULK")
-
-        # Trigger bulk commit on column 0 from row 0
-        grid._on_bulk_edit_commit(editor, 0, 0)
+        # Simulate the model update that cellChanged fires after editor commit
+        grid.table.item(0, 0).setText("BULK")
         qtbot.wait(50)
 
-        # Rows 1 and 2 should now have "BULK" in column 0
         assert grid.table.item(1, 0).text() == "BULK"
         assert grid.table.item(2, 0).text() == "BULK"
 
     def test_bulk_edit_does_not_fire_on_single_selection(self, grid, qtbot):
         """Bulk edit must not change other rows when only one row is selected."""
-        grid.table.setCurrentCell(0, 0)
+        grid.table.clearSelection()
         grid.table._captured_selection = {0}
 
-        from PySide6.QtWidgets import QLineEdit
-        editor = QLineEdit()
-        editor.setText("SINGLE")
-        grid._on_bulk_edit_commit(editor, 0, 0)
+        grid.table.item(0, 0).setText("SINGLE")
         qtbot.wait(50)
 
         assert grid.table.item(1, 0).text() == "Beta"
@@ -417,19 +409,18 @@ class TestBulkEditSelectionCapture:
         assert grid.table._captured_selection == {0, 1, 2}
 
     def test_text_bulk_edit_uses_captured_selection(self, grid, qtbot):
-        """_on_bulk_edit_commit propagates to rows from _captured_selection, not selectedItems."""
+        """_on_text_cell_changed propagates to rows in _captured_selection, not selectedItems."""
         grid.table.clearSelection()
         grid.table._captured_selection = {0, 1, 2}  # simulate pre-click capture
 
-        from PySide6.QtWidgets import QLineEdit
-        editor = QLineEdit()
-        editor.setText("DATE")
-        grid._on_bulk_edit_commit(editor, 0, 0)
+        # Triggering via cellChanged path (same as real editor commit)
+        grid.table.item(0, 0).setText("DATE")
         qtbot.wait(50)
 
         assert grid.table.item(1, 0).text() == "DATE"
         assert grid.table.item(2, 0).text() == "DATE"
-        assert grid.table.item(0, 0).text() == "Alpha"  # source row unchanged by propagation
+        # Source row was set explicitly; that's expected
+        assert grid.table.item(0, 0).text() == "DATE"
 
     def test_combobox_bulk_edit_uses_captured_selection(self, full_grid, qtbot):
         """_propagate_combobox_change uses _captured_selection, not selectedItems()."""
