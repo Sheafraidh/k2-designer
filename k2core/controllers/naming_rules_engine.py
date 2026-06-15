@@ -20,9 +20,12 @@ For commercial licensing, contact: sheafraidh@gmail.com
 See LICENSE file for full terms.
 """
 
+import logging
 import os
 
 from jinja2 import Environment, FileSystemLoader
+
+logger = logging.getLogger(__name__)
 
 
 class NamingRulesEngine:
@@ -70,7 +73,7 @@ class NamingRulesEngine:
                 self._create_default_template()
                 self.template = self.env.get_template('naming_rules.j2')
         except Exception as e:
-            print(f"⚠ Error loading naming rules template: {e}")
+            logger.warning("Error loading naming rules template: %s", e)
             self.template = None
 
     def _create_default_template(self):
@@ -135,7 +138,7 @@ class NamingRulesEngine:
             )
             return result.strip()
         except Exception as e:
-            print(f"⚠ Error generating primary key name: {e}")
+            logger.warning("Error generating primary key name: %s", e)
             return f"{table_name}_PK"
 
     def generate_foreign_key_name(self, table_name: str, columns: list[str],
@@ -177,7 +180,7 @@ class NamingRulesEngine:
             )
             return result.strip()
         except Exception as e:
-            print(f"⚠ Error generating foreign key name: {e}")
+            logger.warning("Error generating foreign key name: %s", e)
             from ..models.base import Key
             number = self._count_existing_keys(table, Key.FOREIGN) + 1
             return f"{table_name}_FK{number}"
@@ -218,7 +221,7 @@ class NamingRulesEngine:
             )
             return result.strip()
         except Exception as e:
-            print(f"⚠ Error generating unique key name: {e}")
+            logger.warning("Error generating unique key name: %s", e)
             from ..models.base import Key
             number = self._count_existing_keys(table, Key.UNIQUE) + 1
             return f"{table_name}_UK{number}"
@@ -257,7 +260,7 @@ class NamingRulesEngine:
             )
             return result.strip()
         except Exception as e:
-            print(f"⚠ Error generating index name: {e}")
+            logger.warning("Error generating index name: %s", e)
             number = self._count_existing_indexes(table) + 1
             return f"{table_name}_I{number}"
 

@@ -20,6 +20,8 @@ For commercial licensing, contact: sheafraidh@gmail.com
 See LICENSE file for full terms.
 """
 
+import logging
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QKeySequence, QPalette
 from PySide6.QtWidgets import (
@@ -41,6 +43,8 @@ from ..dialogs.stereotype_dialog import StereotypeDialog
 from k2core.models import Project
 from .diagram_view import DiagramView
 from .object_browser import ObjectBrowser
+
+logger = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
@@ -371,8 +375,7 @@ class MainWindow(QMainWindow):
                     # Failed to load, clear the setting
                     self.user_settings.last_project_path = ''
             except Exception as e:
-                # Failed to load, clear the setting
-                print(f"Failed to load last project: {e}")
+                logger.warning("Failed to load last project: %s", e)
                 self.user_settings.last_project_path = ''
 
     def _new_project(self):
@@ -799,8 +802,7 @@ class MainWindow(QMainWindow):
                     "Error",
                     f"Failed to generate test data: {str(e)}"
                 )
-                import traceback
-                traceback.print_exc()
+                logger.exception("Failed to generate test data")
 
     def _about(self):
         """Show about dialog."""

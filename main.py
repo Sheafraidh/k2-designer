@@ -20,10 +20,13 @@ For commercial licensing, contact: sheafraidh@gmail.com
 See LICENSE file for full terms.
 """
 
+import logging
+import logging.handlers
 import os
 import sys
 import traceback
 import warnings
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
@@ -38,64 +41,77 @@ if sys.platform == "darwin":  # macOS
                           message=".*NSOpenPanel.*overrides.*identifier.*")
 
 
+def setup_logging() -> logging.Logger:
+    """Configure application-wide logging to console and rotating log file."""
+    log_dir = Path.home() / '.k2designer'
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / 'k2designer.log'
+
+    dev_mode = os.environ.get('K2_DEV', '').lower() in ('1', 'true', 'yes')
+    level = logging.DEBUG if dev_mode else logging.INFO
+
+    fmt = logging.Formatter(
+        '%(asctime)s %(levelname)-8s %(name)s — %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+    )
+
+    root = logging.getLogger()
+    root.setLevel(level)
+
+    console = logging.StreamHandler()
+    console.setFormatter(fmt)
+    root.addHandler(console)
+
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding='utf-8',
+    )
+    file_handler.setFormatter(fmt)
+    root.addHandler(file_handler)
+
+    return logging.getLogger(__name__)
+
+
+logger = logging.getLogger(__name__)
+
+
 def handle_exception(exc_type, exc_value, exc_traceback):
-    """Global exception handler to show detailed error information for debugging."""
+    """Global exception handler — logs unhandled exceptions with full context."""
     if issubclass(exc_type, KeyboardInterrupt):
-        # Allow Ctrl+C to work normally
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return
 
-    # Print detailed exception information to console
-    print("\n" + "="*80)
-    print("🚨 UNHANDLED EXCEPTION OCCURRED 🚨")
-    print("="*80)
-    print(f"Exception Type: {exc_type.__name__}")
-    print(f"Exception Message: {exc_value}")
-    print("\nFull Traceback:")
-    print("-" * 40)
+    logger.critical(
+        "Unhandled exception: %s — %s\nPython %s | platform %s | cwd %s",
+        exc_type.__name__, exc_value,
+        sys.version, sys.platform, os.getcwd(),
+        exc_info=(exc_type, exc_value, exc_traceback),
+    )
 
-    # Print the full traceback
-    traceback.print_exception(exc_type, exc_value, exc_traceback)
-
-    print("-" * 40)
-    print("🔍 Debug Information:")
-    print(f"   - Python Version: {sys.version}")
-    print(f"   - Platform: {sys.platform}")
-    print(f"   - Working Directory: {os.getcwd()}")
-
-    # Show local variables in the failing frame if available
     if exc_traceback:
         tb = exc_traceback
         while tb.tb_next:
-            tb = tb.tb_next  # Get the innermost frame
-
+            tb = tb.tb_next
         frame = tb.tb_frame
-        print(f"   - Failing Function: {frame.f_code.co_name}")
-        print(f"   - Failing File: {frame.f_code.co_filename}:{tb.tb_lineno}")
-
-        # Show local variables (be careful not to show sensitive data)
+        logger.critical(
+            "Failing location: %s in %s:%d",
+            frame.f_code.co_name, frame.f_code.co_filename, tb.tb_lineno,
+        )
         if frame.f_locals:
-            print("\n🔧 Local Variables in Failing Frame:")
+            vars_lines = []
             for name, value in frame.f_locals.items():
                 try:
-                    # Limit output length and avoid showing large objects
                     value_str = str(value)
                     if len(value_str) > 100:
                         value_str = value_str[:97] + "..."
-                    print(f"   {name} = {value_str}")
+                    vars_lines.append(f"  {name} = {value_str}")
                 except Exception:
-                    print(f"   {name} = <unable to display>")
-
-    print("="*80)
-    print("💡 This detailed error information is shown for debugging purposes.")
-    print("   In production, you may want to disable this by removing the")
-    print("   sys.excepthook assignment in main.py")
-    print("="*80 + "\n")
+                    vars_lines.append(f"  {name} = <unable to display>")
+            logger.debug("Local variables in failing frame:\n%s", "\n".join(vars_lines))
 
 
 def main():
     """Main application entry point."""
-    # Install global exception handler for debugging
+    setup_logging()
     sys.excepthook = handle_exception
 
     # Suppress macOS-specific warnings on stderr
