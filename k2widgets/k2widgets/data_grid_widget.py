@@ -24,8 +24,9 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtWidgets import (
+    QAbstractItemDelegate,
     QComboBox,
     QHBoxLayout,
     QHeaderView,
@@ -44,35 +45,85 @@ logger = logging.getLogger(__name__)
 
 
 class MultiSelectDelegate(QStyledItemDelegate):
-    """Custom delegate that handles multi-row editing."""
+    """Custom delegate that handles multi-row editing and keyboard navigation."""
 
-    editingStarted = Signal(int, int)  # row, column
-
-    def setEditorData(self, editor, index):
-        """Override to capture when editing starts."""
-        self.editingStarted.emit(index.row(), index.column())
-        super().setEditorData(editor, index)
-
-
-class MultiSelectTableWidget(QTableWidget):
-    """Custom table widget that preserves selection during editing for multi-row updates."""
+    editingStarted = Signal(int, int)   # row, column
+    enterPressed = Signal(int, int)     # row, column — Enter committed inside a text cell
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._captured_selection = set()
+        self._editing_row = -1
+        self._editing_col = -1
+
+    def setEditorData(self, editor, index):
+        """Override to capture editing location when editing starts."""
+        self._editing_row = index.row()
+        self._editing_col = index.column()
+        self.editingStarted.emit(index.row(), index.column())
+        super().setEditorData(editor, index)
+
+    def eventFilter(self, editor, event):
+        """Intercept Enter inside text editors to emit enterPressed instead of staying put."""
+        if event.type() == QEvent.Type.KeyPress:
+            if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                self.commitData.emit(editor)
+                self.closeEditor.emit(editor, QAbstractItemDelegate.EndEditHint.NoHint)
+                self.enterPressed.emit(self._editing_row, self._editing_col)
+                return True
+        return super().eventFilter(editor, event)
+
+
+class MultiSelectTableWidget(QTableWidget):
+    """Custom table widget: preserves selection for bulk edit, handles keyboard navigation."""
+
+    addRowRequested = Signal()  # emitted when Enter pressed on the last row
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._captured_selection: set[int] = set()
         self._delegate = MultiSelectDelegate()
         self.setItemDelegate(self._delegate)
         self._delegate.editingStarted.connect(self._on_editing_started)
+        self._grid: "DataGridWidget | None" = None  # back-reference set by DataGridWidget
 
     def _on_editing_started(self, row, column):
         """Capture selection when editing starts."""
-        self._captured_selection = set()
-        for item in self.selectedItems():
-            self._captured_selection.add(item.row())
+        self._captured_selection = {item.row() for item in self.selectedItems()}
 
-    def get_captured_selection(self):
-        """Get the selection captured when editing started."""
+    def get_captured_selection(self) -> set[int]:
         return self._captured_selection
+
+    # ------------------------------------------------------------------
+    # Keyboard navigation
+    # ------------------------------------------------------------------
+
+    def keyPressEvent(self, event):
+        key = event.key()
+        mods = event.modifiers()
+
+        # Ctrl+C / Ctrl+V handled later (commit 4); no-op here for now.
+
+        # Enter (when not in an editor) → navigate down or add row.
+        # Tab / Shift+Tab → Qt's default delegate logic (EditNextItem /
+        # EditPreviousItem) already handles navigation; let super() run.
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and not mods:
+            row = self.currentRow()
+            col = self.currentColumn()
+            if row >= 0:
+                self._navigate_down(row, col)
+            event.accept()
+            return
+
+        super().keyPressEvent(event)
+
+    def _navigate_down(self, row: int, col: int):
+        """Move to the row below; emit addRowRequested if already on last row."""
+        next_row = row + 1
+        if next_row >= self.rowCount():
+            self.addRowRequested.emit()
+            next_row = self.rowCount() - 1
+        if next_row >= 0:
+            self.setCurrentCell(next_row, max(col, 0))
 
 
 class ColumnConfig:
@@ -525,6 +576,7 @@ class DataGridWidget(QWidget):
     def _build_table(self):
         """Build the data table."""
         self.table = MultiSelectTableWidget()
+        self.table._grid = self  # back-reference for keyboard/clipboard handlers
         self.table.setColumnCount(len(self._columns))
         self.table.setHorizontalHeaderLabels([col.name for col in self._columns])
 
@@ -550,6 +602,10 @@ class DataGridWidget(QWidget):
         # Disable Edit button when multiple rows are selected
         self.table.selectionModel().selectionChanged.connect(self._on_selection_changed)
 
+        # Enter-in-cell navigation (from delegate) and add-row from table
+        self.table._delegate.enterPressed.connect(self._on_enter_in_cell)
+        self.table.addRowRequested.connect(self._on_add)
+
         self.layout.addWidget(self.table)
 
     def _on_selection_changed(self):
@@ -558,6 +614,22 @@ class DataGridWidget(QWidget):
             return
         selected = {item.row() for item in self.table.selectedItems()}
         self._edit_btn.setEnabled(len(selected) <= 1)
+
+    def _on_enter_in_cell(self, row: int, col: int):
+        """Called when Enter is pressed inside a text editor — navigate down."""
+        next_row = row + 1
+        if next_row >= self.table.rowCount():
+            if self._show_add_button:
+                self.add_row()
+                next_row = self.table.rowCount() - 1
+            else:
+                return
+        self.table.setCurrentCell(next_row, col)
+        # Start editing immediately if the target is a plain text cell
+        if col < len(self._columns) and self._columns[col].editor_type == "text":
+            item = self.table.item(next_row, col)
+            if item:
+                self.table.editItem(item)
 
     def _apply_filters(self):
         """Apply filters to show/hide rows based on filter criteria."""
