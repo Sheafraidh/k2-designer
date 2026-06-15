@@ -6,7 +6,9 @@ requires-python = ">=3.13"
 members = [
     "k2-designer",
     "k2core",
+    "k2devtools",
     "k2gui",
+    "k2widgets",
 ]
 
 [[package]]
@@ -196,6 +198,17 @@ provides-extras = ["dev"]
 dev = [{ name = "pytest", specifier = ">=9.1.0" }]
 
 [[package]]
+name = "k2devtools"
+version = "0.1.0"
+source = { editable = "k2devtools" }
+dependencies = [
+    { name = "k2widgets" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "k2widgets", editable = "k2widgets" }]
+
+[[package]]
 name = "k2gui"
 version = "1.0.0"
 source = { editable = "k2gui" }
@@ -213,6 +226,17 @@ requires-dist = [
     { name = "oracledb", specifier = ">=1.4.0" },
     { name = "pyside6", specifier = ">=6.5.0" },
 ]
+
+[[package]]
+name = "k2widgets"
+version = "0.1.0"
+source = { editable = "k2widgets" }
+dependencies = [
+    { name = "pyside6" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pyside6", specifier = ">=6.5.0" }]
 
 [[package]]
 name = "markupsafe"
