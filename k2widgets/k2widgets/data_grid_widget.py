@@ -24,7 +24,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemDelegate,
     QComboBox,
@@ -149,6 +149,30 @@ class MultiSelectTableWidget(QTableWidget):
         """Show a right-click context menu with common grid operations."""
         if self._grid:
             self._grid._show_context_menu(event.globalPos())
+
+
+class CellWidgetEventFilter(QObject):
+    """Event filter installed on cell widgets (checkboxes, comboboxes).
+
+    QCheckBox and QComboBox eat Tab/Shift+Tab/Enter and never let them
+    reach the parent QTableWidget, so keyboard navigation stops dead.
+    This filter intercepts those keys and delegates to the grid's
+    _handle_navigation_key(), which reads the table's *current* cell at
+    call-time — so navigation is correct even after rows are sorted or moved.
+    """
+
+    def __init__(self, grid: "DataGridWidget"):
+        super().__init__(grid)   # grid is the QObject parent → auto-cleanup
+        self._grid = grid
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.KeyPress:
+            key = event.key()
+            if key in (Qt.Key.Key_Tab, Qt.Key.Key_Backtab,
+                       Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                self._grid._handle_navigation_key(key)
+                return True   # consume the event so the widget doesn't act on it
+        return False
 
 
 class ColumnConfig:
@@ -641,6 +665,40 @@ class DataGridWidget(QWidget):
         selected = {item.row() for item in self.table.selectedItems()}
         self._edit_btn.setEnabled(len(selected) <= 1)
 
+    def _handle_navigation_key(self, key: Qt.Key):
+        """Handle Tab/Shift+Tab/Enter forwarded from a cell widget event filter.
+
+        Always reads current row/col from the table at call-time so navigation
+        remains correct even after rows have been sorted or moved.
+        """
+        row = self.table.currentRow()
+        col = self.table.currentColumn()
+        if row < 0 or col < 0:
+            return
+
+        if key == Qt.Key.Key_Tab:
+            next_col = col + 1
+            next_row = row
+            if next_col >= self.table.columnCount():
+                next_col = 0
+                next_row = row + 1
+                if next_row >= self.table.rowCount():
+                    next_row = 0
+            self.table.setCurrentCell(next_row, next_col)
+
+        elif key == Qt.Key.Key_Backtab:
+            next_col = col - 1
+            next_row = row
+            if next_col < 0:
+                next_col = self.table.columnCount() - 1
+                next_row = row - 1
+                if next_row < 0:
+                    next_row = self.table.rowCount() - 1
+            self.table.setCurrentCell(next_row, next_col)
+
+        elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.table._navigate_down(row, col)
+
     # ------------------------------------------------------------------
     # Bulk edit
     # ------------------------------------------------------------------
@@ -1061,6 +1119,8 @@ class DataGridWidget(QWidget):
         # Store checkbox reference for easy access
         widget.checkbox = checkbox
         checkbox.stateChanged.connect(lambda: self._propagate_checkbox_change(checkbox, col))
+        # Let Tab/Enter navigate away instead of being swallowed by the checkbox
+        checkbox.installEventFilter(CellWidgetEventFilter(self))
 
     def _setup_combobox_cell(self, row: int, col: int, value: str, items: list[str], editable: bool = False):
         """Setup a combobox cell with optional editability."""
@@ -1086,6 +1146,8 @@ class DataGridWidget(QWidget):
                 combo.setCurrentText(value)
 
         combo.currentIndexChanged.connect(lambda: self._propagate_combobox_change(combo, col))
+        # Let Tab/Enter navigate away instead of being swallowed by the combobox
+        combo.installEventFilter(CellWidgetEventFilter(self))
         self.table.setCellWidget(row, col, combo)
 
     def _setup_combobox_data_cell(self, row: int, col: int, value: str, items: list[str], items_data: list[str]):
@@ -1104,6 +1166,8 @@ class DataGridWidget(QWidget):
                 combo.setCurrentIndex(index)
 
         combo.currentIndexChanged.connect(lambda: self._propagate_combobox_change(combo, col))
+        # Let Tab/Enter navigate away instead of being swallowed by the combobox
+        combo.installEventFilter(CellWidgetEventFilter(self))
         self.table.setCellWidget(row, col, combo)
 
     def remove_selected_rows(self, confirm: bool = True) -> list[int]:
