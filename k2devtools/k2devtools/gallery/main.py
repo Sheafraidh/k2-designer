@@ -32,7 +32,12 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
-from .data_grid_examples import ColumnsGridExample, IndexesGridExample, KeysGridExample
+from .data_grid_examples import (
+    ColumnsGridExample,
+    ExcelFeaturesDemo,
+    IndexesGridExample,
+    KeysGridExample,
+)
 
 
 def main() -> None:
@@ -44,7 +49,10 @@ def main() -> None:
         dialog = KeysGridExample()
     elif "--indexes" in args:
         dialog = IndexesGridExample()
+    elif "--excel" in args:
+        dialog = ExcelFeaturesDemo()
     else:
+        # Default: columns demo (most feature-rich)
         dialog = ColumnsGridExample(
             available_domains=["ID_DOMAIN", "NAME_DOMAIN", "DATE_DOMAIN"],
             available_stereotypes=["PK", "FK", "AUDIT"],

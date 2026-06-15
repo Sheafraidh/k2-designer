@@ -400,3 +400,91 @@ class ColumnsGridExample(QDialog):
         """Get all columns data."""
         return self.grid.get_all_data()
 
+
+class ExcelFeaturesDemo(QDialog):
+    """Demo of Excel-like features: Tab/Enter nav, bulk edit, Ctrl+C/V, context menu."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Excel-like Features Demo")
+        self.resize(800, 550)
+
+        layout = QVBoxLayout(self)
+
+        from PySide6.QtWidgets import QLabel
+        info = QLabel(
+            "<b>Excel-like features demo</b><br>"
+            "• <b>Tab / Shift+Tab</b> — navigate cells left/right<br>"
+            "• <b>Enter</b> — move down (adds new row on last row)<br>"
+            "• <b>Ctrl+click</b> multiple rows, then edit one cell → bulk edit<br>"
+            "• <b>Ctrl+C</b> — copy selected rows as TSV<br>"
+            "• <b>Ctrl+V</b> — paste TSV from clipboard as new rows<br>"
+            "• <b>Right-click</b> — context menu (Insert Above/Below, Delete, Move)"
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("background: #f0f4ff; padding: 8px; border-radius: 4px;")
+        layout.addWidget(info)
+
+        self.grid = DataGridWidget()
+        columns = [
+            ColumnConfig(
+                name="Name",
+                width=150,
+                resize_mode=QHeaderView.ResizeMode.Interactive,
+                editor_type="text",
+                filter_type="text",
+            ),
+            ColumnConfig(
+                name="Department",
+                width=120,
+                resize_mode=QHeaderView.ResizeMode.Interactive,
+                editor_type="combobox",
+                editor_options={"items": ["Engineering", "Marketing", "Sales", "Support"]},
+                filter_type="combobox",
+                filter_options={"items": ["All", "Engineering", "Marketing", "Sales", "Support"]},
+            ),
+            ColumnConfig(
+                name="Active",
+                width=70,
+                resize_mode=QHeaderView.ResizeMode.Fixed,
+                editor_type="checkbox_centered",
+                filter_type="combobox",
+                filter_options={"items": ["All", "Nullable", "Not Nullable"]},
+                filter_matcher=lambda fv, cv: (cv == "true") if fv == "Nullable" else (cv == "false"),
+            ),
+            ColumnConfig(
+                name="Notes",
+                width=200,
+                resize_mode=QHeaderView.ResizeMode.Stretch,
+                editor_type="text",
+                filter_type="text",
+            ),
+        ]
+
+        self.grid.configure(
+            columns=columns,
+            show_filters=True,
+            show_add_button=True,
+            show_edit_button=True,
+            show_remove_button=True,
+            show_move_buttons=True,
+        )
+
+        for row in [
+            ["Alice", "Engineering", True, "Lead developer"],
+            ["Bob", "Marketing", True, ""],
+            ["Carol", "Sales", False, "On leave"],
+            ["Dave", "Support", True, ""],
+            ["Eve", "Engineering", True, "Backend team"],
+        ]:
+            self.grid.add_row(row)
+
+        layout.addWidget(self.grid)
+
+        btns = QHBoxLayout()
+        btns.addStretch()
+        ok = QPushButton("Close")
+        ok.clicked.connect(self.accept)
+        btns.addWidget(ok)
+        layout.addLayout(btns)
+

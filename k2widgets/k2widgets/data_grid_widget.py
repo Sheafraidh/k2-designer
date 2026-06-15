@@ -134,13 +134,16 @@ class MultiSelectTableWidget(QTableWidget):
         super().keyPressEvent(event)
 
     def _navigate_down(self, row: int, col: int):
-        """Move to the row below; emit addRowRequested if already on last row."""
+        """Move to the row below; emit addRowRequested if at last row and add is enabled."""
         next_row = row + 1
         if next_row >= self.rowCount():
-            self.addRowRequested.emit()
-            next_row = self.rowCount() - 1
-        if next_row >= 0:
-            self.setCurrentCell(next_row, max(col, 0))
+            can_add = self._grid is not None and self._grid._show_add_button
+            if can_add:
+                self.addRowRequested.emit()
+                next_row = self.rowCount() - 1
+            else:
+                return  # Stay on last row when adding is disabled
+        self.setCurrentCell(next_row, max(col, 0))
 
     def contextMenuEvent(self, event):
         """Show a right-click context menu with common grid operations."""
@@ -683,9 +686,15 @@ class DataGridWidget(QWidget):
             target = self.table.cellWidget(r, col)
             if isinstance(target, QComboBox):
                 target.blockSignals(True)
-                idx = target.findData(data_value)
-                if idx >= 0:
-                    target.setCurrentIndex(idx)
+                # Only use findData when an explicit data value was set (not None);
+                # addItems() leaves UserRole as None, causing findData(None) to match
+                # index 0 of every item — so fall back to text matching in that case.
+                if data_value is not None:
+                    idx = target.findData(data_value)
+                    if idx >= 0:
+                        target.setCurrentIndex(idx)
+                    else:
+                        target.setCurrentText(text_value)
                 else:
                     target.setCurrentText(text_value)
                 target.blockSignals(False)
