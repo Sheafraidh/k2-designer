@@ -47,8 +47,9 @@ logger = logging.getLogger(__name__)
 class MultiSelectDelegate(QStyledItemDelegate):
     """Custom delegate that handles multi-row editing and keyboard navigation."""
 
-    editingStarted = Signal(int, int)   # row, column
-    enterPressed = Signal(int, int)     # row, column — Enter committed inside a text cell
+    editingStarted = Signal(int, int)       # row, column
+    enterPressed = Signal(int, int)         # row, column — Enter committed inside a text cell
+    bulkEditCommitted = Signal(object, int, int)  # editor widget, row, col
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -61,6 +62,11 @@ class MultiSelectDelegate(QStyledItemDelegate):
         self._editing_col = index.column()
         self.editingStarted.emit(index.row(), index.column())
         super().setEditorData(editor, index)
+
+    def commitData(self, editor):
+        """Override to emit bulkEditCommitted after the normal commit."""
+        super().commitData(editor)
+        self.bulkEditCommitted.emit(editor, self._editing_row, self._editing_col)
 
     def eventFilter(self, editor, event):
         """Intercept Enter inside text editors to emit enterPressed instead of staying put."""
@@ -604,6 +610,7 @@ class DataGridWidget(QWidget):
 
         # Enter-in-cell navigation (from delegate) and add-row from table
         self.table._delegate.enterPressed.connect(self._on_enter_in_cell)
+        self.table._delegate.bulkEditCommitted.connect(self._on_bulk_edit_commit)
         self.table.addRowRequested.connect(self._on_add)
 
         self.layout.addWidget(self.table)
@@ -614,6 +621,93 @@ class DataGridWidget(QWidget):
             return
         selected = {item.row() for item in self.table.selectedItems()}
         self._edit_btn.setEnabled(len(selected) <= 1)
+
+    # ------------------------------------------------------------------
+    # Bulk edit
+    # ------------------------------------------------------------------
+
+    def _on_bulk_edit_commit(self, editor, row: int, col: int):
+        """Propagate a text-cell edit to all other selected rows in the same column."""
+        captured = self.table.get_captured_selection()
+        if len(captured) <= 1 or col < 0:
+            return
+        if col >= len(self._columns) or self._columns[col].editor_type != "text":
+            return
+        value = editor.text() if hasattr(editor, "text") else None
+        if value is None:
+            return
+        blocked = False
+        for r in captured:
+            if r == row:
+                continue
+            item = self.table.item(r, col)
+            if item:
+                if not blocked:
+                    self.table.blockSignals(True)
+                    blocked = True
+                item.setText(value)
+        if blocked:
+            self.table.blockSignals(False)
+        if len(captured) > 1:
+            self.data_changed.emit()
+
+    def _propagate_combobox_change(self, source_widget: QComboBox, col: int):
+        """Propagate a combobox selection change to all selected rows in the same column."""
+        selected = {item.row() for item in self.table.selectedItems()}
+        if len(selected) <= 1:
+            return
+        source_row = self._find_widget_row(source_widget, col)
+        if source_row is None:
+            return
+        data_value = source_widget.currentData()
+        text_value = source_widget.currentText()
+        for r in selected:
+            if r == source_row:
+                continue
+            target = self.table.cellWidget(r, col)
+            if isinstance(target, QComboBox):
+                target.blockSignals(True)
+                idx = target.findData(data_value)
+                if idx >= 0:
+                    target.setCurrentIndex(idx)
+                else:
+                    target.setCurrentText(text_value)
+                target.blockSignals(False)
+        self.data_changed.emit()
+
+    def _propagate_checkbox_change(self, source_cb, col: int):
+        """Propagate a checkbox toggle to all selected rows in the same column."""
+        from PySide6.QtWidgets import QCheckBox
+        selected = {item.row() for item in self.table.selectedItems()}
+        if len(selected) <= 1:
+            return
+        source_row = None
+        for r in range(self.table.rowCount()):
+            w = self.table.cellWidget(r, col)
+            if w and hasattr(w, "checkbox") and w.checkbox is source_cb:
+                source_row = r
+                break
+        if source_row is None:
+            return
+        checked = source_cb.isChecked()
+        for r in selected:
+            if r == source_row:
+                continue
+            w = self.table.cellWidget(r, col)
+            if w and hasattr(w, "checkbox") and isinstance(w.checkbox, QCheckBox):
+                w.checkbox.blockSignals(True)
+                w.checkbox.setChecked(checked)
+                w.checkbox.blockSignals(False)
+        self.data_changed.emit()
+
+    def _find_widget_row(self, widget, col: int) -> int | None:
+        """Return the row index that contains the given cell widget in the given column."""
+        for r in range(self.table.rowCount()):
+            if self.table.cellWidget(r, col) is widget:
+                return r
+        return None
+
+    # ------------------------------------------------------------------
 
     def _on_enter_in_cell(self, row: int, col: int):
         """Called when Enter is pressed inside a text editor — navigate down."""
@@ -808,6 +902,7 @@ class DataGridWidget(QWidget):
 
         # Store checkbox reference for easy access
         widget.checkbox = checkbox
+        checkbox.stateChanged.connect(lambda: self._propagate_checkbox_change(checkbox, col))
 
     def _setup_combobox_cell(self, row: int, col: int, value: str, items: list[str], editable: bool = False):
         """Setup a combobox cell with optional editability."""
@@ -832,6 +927,7 @@ class DataGridWidget(QWidget):
             elif value in items:
                 combo.setCurrentText(value)
 
+        combo.currentIndexChanged.connect(lambda: self._propagate_combobox_change(combo, col))
         self.table.setCellWidget(row, col, combo)
 
     def _setup_combobox_data_cell(self, row: int, col: int, value: str, items: list[str], items_data: list[str]):
@@ -849,6 +945,7 @@ class DataGridWidget(QWidget):
             if index >= 0:
                 combo.setCurrentIndex(index)
 
+        combo.currentIndexChanged.connect(lambda: self._propagate_combobox_change(combo, col))
         self.table.setCellWidget(row, col, combo)
 
     def remove_selected_rows(self, confirm: bool = True) -> list[int]:
