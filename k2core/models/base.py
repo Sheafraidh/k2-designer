@@ -182,22 +182,8 @@ class Index(BaseModel):
         return v or str(uuid.uuid4())
 
 
-class Partitioning:
+class Partitioning(BaseModel):
     """Database partitioning definition."""
 
-    def __init__(self, columns: list[str], partition_type: PartitionType):
-        self.columns = columns
-        self.partition_type = partition_type
-
-    def to_dict(self) -> dict:
-        return {
-            'columns': self.columns,
-            'partition_type': self.partition_type.value
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict):
-        return cls(
-            columns=data['columns'],
-            partition_type=PartitionType(data['partition_type'])
-        )
+    columns: list[str]
+    partition_type: PartitionType
