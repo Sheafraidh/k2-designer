@@ -488,3 +488,97 @@ class ExcelFeaturesDemo(QDialog):
         btns.addWidget(ok)
         layout.addLayout(btns)
 
+
+class BulkEditDemo(QDialog):
+    """Demo scénář pro ověření bulk edit propagace po opravě."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Bulk Edit Demo")
+        self.resize(750, 480)
+
+        layout = QVBoxLayout(self)
+
+        from PySide6.QtWidgets import QLabel
+        info = QLabel(
+            "<b>Bulk Edit — jak otestovat:</b><br>"
+            "1. <b>Ctrl+klikni</b> na více řádků (nebo Shift+klik pro rozsah)<br>"
+            "2. Uprav hodnotu v libovolném sloupci vybraného řádku:<br>"
+            "&nbsp;&nbsp;&nbsp;• <b>Text</b>: dvojklik nebo F2, napiš, Enter/Tab<br>"
+            "&nbsp;&nbsp;&nbsp;• <b>Data Type</b>: dvojklik, napiš 'DATE', Enter<br>"
+            "&nbsp;&nbsp;&nbsp;• <b>Nullable</b>: klikni na checkbox<br>"
+            "&nbsp;&nbsp;&nbsp;• <b>Type</b>: klikni na combobox, vyber hodnotu<br>"
+            "3. Změna se automaticky propaguje na <b>všechny ostatní vybrané řádky</b><br>"
+            "4. Ctrl+Z nepodporujeme — ověř nejdřív na jednom řádku."
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("background: #fff8e1; padding: 10px; border-radius: 4px;")
+        layout.addWidget(info)
+
+        self.grid = DataGridWidget()
+        columns = [
+            ColumnConfig(
+                name="Column Name",
+                width=140,
+                resize_mode=QHeaderView.ResizeMode.Interactive,
+                editor_type="text",
+                filter_type="text",
+            ),
+            ColumnConfig(
+                name="Data Type",
+                width=130,
+                resize_mode=QHeaderView.ResizeMode.Interactive,
+                editor_type="text",
+                filter_type="text",
+            ),
+            ColumnConfig(
+                name="Nullable",
+                width=70,
+                resize_mode=QHeaderView.ResizeMode.Fixed,
+                editor_type="checkbox_centered",
+                filter_type="none",
+            ),
+            ColumnConfig(
+                name="Type",
+                width=100,
+                resize_mode=QHeaderView.ResizeMode.Fixed,
+                editor_type="combobox",
+                editor_options={"items": ["VARCHAR2", "NUMBER", "DATE", "CLOB"]},
+                filter_type="none",
+            ),
+            ColumnConfig(
+                name="Comment",
+                width=180,
+                resize_mode=QHeaderView.ResizeMode.Stretch,
+                editor_type="text",
+                filter_type="text",
+            ),
+        ]
+
+        self.grid.configure(
+            columns=columns,
+            show_filters=True,
+            show_add_button=True,
+            show_edit_button=True,
+            show_remove_button=True,
+            show_move_buttons=False,
+        )
+
+        for row in [
+            ["ID",          "NUMBER",       False, "NUMBER",   "Primary key"],
+            ["NAME",        "VARCHAR2(100)", False, "VARCHAR2", ""],
+            ["EMAIL",       "VARCHAR2(255)", True,  "VARCHAR2", ""],
+            ["CREATED_AT",  "DATE",          False, "DATE",     ""],
+            ["DESCRIPTION", "VARCHAR2(4000)", True, "VARCHAR2", "Long text"],
+        ]:
+            self.grid.add_row(row)
+
+        layout.addWidget(self.grid)
+
+        btns = QHBoxLayout()
+        btns.addStretch()
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.accept)
+        btns.addWidget(close_btn)
+        layout.addLayout(btns)
+

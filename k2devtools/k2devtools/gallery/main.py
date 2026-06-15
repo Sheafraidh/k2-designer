@@ -33,6 +33,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from .data_grid_examples import (
+    BulkEditDemo,
     ColumnsGridExample,
     ExcelFeaturesDemo,
     IndexesGridExample,
@@ -51,6 +52,8 @@ def main() -> None:
         dialog = IndexesGridExample()
     elif "--excel" in args:
         dialog = ExcelFeaturesDemo()
+    elif "--bulk" in args:
+        dialog = BulkEditDemo()
     else:
         # Default: columns demo (most feature-rich)
         dialog = ColumnsGridExample(

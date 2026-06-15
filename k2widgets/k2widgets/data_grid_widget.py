@@ -92,9 +92,57 @@ class MultiSelectTableWidget(QTableWidget):
         self._delegate.editingStarted.connect(self._on_editing_started)
         self._grid: "DataGridWidget | None" = None  # back-reference set by DataGridWidget
 
-    def _on_editing_started(self, row, column):
-        """Capture selection when editing starts."""
-        self._captured_selection = {item.row() for item in self.selectedItems()}
+    def _update_bulk_selection(self):
+        """Called on selectionChanged: track multi-row selection for bulk edit.
+
+        Only updates when >= 2 rows are selected so that a plain-click
+        collapsing selection to 1 row does NOT overwrite the bulk context.
+        """
+        current = {item.row() for item in self.selectedItems()}
+        if len(current) >= 2:
+            self._captured_selection = current
+
+    def _on_editing_started(self, row: int, column: int):
+        """Preserve bulk context when the editor opens inside a captured multi-selection.
+
+        By the time editingStarted fires, the user's click has already collapsed
+        the visible selection to a single row.  We therefore:
+        - Update _captured_selection when there are still >= 2 selected rows
+          (keyboard-initiated edit via F2, without changing selection).
+        - Preserve the pre-click bulk context when editing a row that is already
+          inside _captured_selection (mousePressEvent saved it before collapse).
+        - Reset to single-row context otherwise.
+        """
+        current = {item.row() for item in self.selectedItems()}
+        if len(current) >= 2:
+            self._captured_selection = current
+        elif row in self._captured_selection:
+            pass  # preserve; mousePressEvent already captured the bulk context
+        else:
+            self._captured_selection = current  # fresh single-row edit
+
+    def mousePressEvent(self, event):
+        """Capture multi-selection BEFORE a plain click might collapse it.
+
+        Qt collapses the selection to the clicked row inside super().mousePressEvent().
+        By reading selectedItems() first we can save the pre-collapse set and
+        restore it as the bulk-edit context for the upcoming edit operation.
+        """
+        if event.button() == Qt.MouseButton.LeftButton:
+            mods = event.modifiers()
+            no_modifier = not (mods & (Qt.KeyboardModifier.ControlModifier |
+                                       Qt.KeyboardModifier.ShiftModifier))
+            if no_modifier:
+                pre_click = {item.row() for item in self.selectedItems()}
+                clicked_row = self.indexAt(event.pos()).row()  # -1 if no index
+                if len(pre_click) > 1:
+                    if clicked_row in pre_click:
+                        # Click within the multi-selection → preserve for bulk edit
+                        self._captured_selection = pre_click
+                    else:
+                        # Click outside the multi-selection → clear bulk context
+                        self._captured_selection = set()
+        super().mousePressEvent(event)
 
     def get_captured_selection(self) -> set[int]:
         return self._captured_selection
@@ -648,6 +696,9 @@ class DataGridWidget(QWidget):
         # Connect main table column resize to sync with filter table
         header.sectionResized.connect(self._on_main_column_resized)
 
+        # Track multi-row selection for bulk edit (fires on every Ctrl/Shift click)
+        self.table.selectionModel().selectionChanged.connect(self.table._update_bulk_selection)
+
         # Disable Edit button when multiple rows are selected
         self.table.selectionModel().selectionChanged.connect(self._on_selection_changed)
 
@@ -730,7 +781,7 @@ class DataGridWidget(QWidget):
 
     def _propagate_combobox_change(self, source_widget: QComboBox, col: int):
         """Propagate a combobox selection change to all selected rows in the same column."""
-        selected = {item.row() for item in self.table.selectedItems()}
+        selected = self.table.get_captured_selection()
         if len(selected) <= 1:
             return
         source_row = self._find_widget_row(source_widget, col)
@@ -761,7 +812,7 @@ class DataGridWidget(QWidget):
     def _propagate_checkbox_change(self, source_cb, col: int):
         """Propagate a checkbox toggle to all selected rows in the same column."""
         from PySide6.QtWidgets import QCheckBox
-        selected = {item.row() for item in self.table.selectedItems()}
+        selected = self.table.get_captured_selection()
         if len(selected) <= 1:
             return
         source_row = None
@@ -1564,6 +1615,7 @@ class DataGridWidget(QWidget):
     def clear_data(self):
         """Clear all rows from the grid."""
         self.table.setRowCount(0)
+        self.table._captured_selection = set()
         self.data_changed.emit()
 
     def commit_active_editor(self):

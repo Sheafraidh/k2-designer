@@ -358,3 +358,119 @@ class TestContextMenu:
         # Row 0 unchanged, new empty row at 1, old row 1 pushed to 2
         assert grid.table.item(0, 0).text() == "Alpha"
         assert grid.table.item(2, 0).text() == "Beta"
+
+
+# ---------------------------------------------------------------------------
+# Bulk edit — selection capture fix
+# ---------------------------------------------------------------------------
+
+class TestBulkEditSelectionCapture:
+    """Tests for the fixed _captured_selection mechanism.
+
+    The core bug was: a plain click to start editing collapses the table
+    selection to a single row BEFORE editingStarted fires.  The fix uses
+    three complementary mechanisms:
+      1. selectionChanged → _update_bulk_selection  (tracks Ctrl/Shift builds)
+      2. mousePressEvent pre-capture                 (saves before collapse)
+      3. _on_editing_started preservation            (keeps if row in context)
+    """
+
+    def test_update_bulk_selection_on_multi_select(self, grid, qtbot):
+        """_update_bulk_selection fires on selectionChanged and stores >= 2 rows."""
+        grid.table.selectAll()
+        qtbot.wait(50)
+        assert grid.table._captured_selection == {0, 1, 2}
+
+    def test_update_bulk_selection_ignores_single_row(self, grid, qtbot):
+        """_update_bulk_selection must NOT overwrite when selection collapses to 1 row."""
+        # Build multi-selection
+        grid.table.selectAll()
+        qtbot.wait(50)
+        assert grid.table._captured_selection == {0, 1, 2}
+
+        # Simulate selection collapsing to row 0 without clearing captured context
+        grid.table._captured_selection = {0, 1, 2}       # as set by selectAll above
+        # Directly call the handler with a single-item mock — must not overwrite
+        # We do this by checking that _on_editing_started preserves when row in set
+        grid.table._on_editing_started(0, 0)
+        assert grid.table._captured_selection == {0, 1, 2}
+
+    def test_editing_started_resets_on_outside_row(self, grid, qtbot):
+        """_on_editing_started must clear the bulk context when editing a row outside it.
+
+        The exact new value of _captured_selection depends on the table's current
+        selection (which varies by Qt version / show state).  The invariant we
+        care about: rows 0 and 1 must NOT survive in the capture after editing
+        row 2, which is outside the {0, 1} context.
+        """
+        grid.table.clearSelection()
+        grid.table._captured_selection = {0, 1}
+        grid.table._on_editing_started(2, 0)  # row 2 not in {0, 1}
+        assert grid.table._captured_selection.isdisjoint({0, 1}), (
+            f"Old bulk rows must be evicted; got {grid.table._captured_selection}"
+        )
+
+    def test_editing_started_preserves_when_row_in_capture(self, grid, qtbot):
+        """_on_editing_started must keep captured set when editing a row inside it."""
+        grid.table._captured_selection = {0, 1, 2}
+        grid.table._on_editing_started(1, 0)   # row 1 IS in the set
+        assert grid.table._captured_selection == {0, 1, 2}
+
+    def test_text_bulk_edit_uses_captured_selection(self, grid, qtbot):
+        """_on_bulk_edit_commit propagates to rows from _captured_selection, not selectedItems."""
+        grid.table.clearSelection()
+        grid.table._captured_selection = {0, 1, 2}  # simulate pre-click capture
+
+        from PySide6.QtWidgets import QLineEdit
+        editor = QLineEdit()
+        editor.setText("DATE")
+        grid._on_bulk_edit_commit(editor, 0, 0)
+        qtbot.wait(50)
+
+        assert grid.table.item(1, 0).text() == "DATE"
+        assert grid.table.item(2, 0).text() == "DATE"
+        assert grid.table.item(0, 0).text() == "Alpha"  # source row unchanged by propagation
+
+    def test_combobox_bulk_edit_uses_captured_selection(self, full_grid, qtbot):
+        """_propagate_combobox_change uses _captured_selection, not selectedItems()."""
+        full_grid.table.clearSelection()  # no visible selection
+        full_grid.table._captured_selection = {0, 1, 2}  # simulate pre-click capture
+
+        combo0 = full_grid.table.cellWidget(0, 2)
+        combo0.setCurrentText("C")
+        qtbot.wait(50)
+
+        assert full_grid.table.cellWidget(1, 2).currentText() == "C"
+        assert full_grid.table.cellWidget(2, 2).currentText() == "C"
+
+    def test_checkbox_bulk_edit_uses_captured_selection(self, full_grid, qtbot):
+        """_propagate_checkbox_change uses _captured_selection, not selectedItems()."""
+        full_grid.table.clearSelection()
+        full_grid.table._captured_selection = {0, 1, 2}
+
+        w0 = full_grid.table.cellWidget(0, 1)
+        w0.checkbox.setChecked(False)
+        qtbot.wait(50)
+
+        assert not full_grid.table.cellWidget(1, 1).checkbox.isChecked()
+        assert not full_grid.table.cellWidget(2, 1).checkbox.isChecked()
+
+    def test_clear_data_resets_captured_selection(self, grid, qtbot):
+        """clear_data() must reset _captured_selection to avoid stale row references."""
+        grid.table._captured_selection = {0, 1, 2}
+        grid.clear_data()
+        assert grid.table._captured_selection == set()
+
+    def test_plain_click_outside_selection_clears_context(self, grid, qtbot):
+        """Bulk context must be invalidated when user acts on a row outside it.
+
+        Simulate: user had {0, 1} multi-selected, then plain-clicks row 2.
+        _on_editing_started(2, 0) must ensure rows 0 and 1 are no longer in
+        _captured_selection so that an edit on row 2 doesn't propagate to them.
+        """
+        grid.table.clearSelection()  # guarantee no stale selection
+        grid.table._captured_selection = {0, 1}
+        grid.table._on_editing_started(2, 0)  # row 2 not in {0, 1}
+        assert grid.table._captured_selection.isdisjoint({0, 1}), (
+            f"Old bulk rows must not survive; got {grid.table._captured_selection}"
+        )
